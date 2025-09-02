@@ -473,8 +473,6 @@ SESSION_MANAGER_TYPE=memory  # Options: memory, firestore, redis, mongodb
 ### **Session Manager Types**
 - **memory**: Fast, in-memory storage (default, good for development)
 - **firestore**: Google Cloud Firestore (good for production)
-- **redis**: Redis database (good for high-performance)
-- **mongodb**: MongoDB database (good for complex queries)
 
 ## 🎯 Use Cases
 

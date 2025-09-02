@@ -1,6 +1,6 @@
 """
 Session managers for different storage backends
-Supports Firestore, Redis, MongoDB, and in-memory storage
+Supports Firestore and in-memory storage
 """
 
 import json
@@ -104,13 +104,20 @@ class FirestoreSessionManager(SessionManager):
     
     def get_session(self, session_id: str) -> Optional[ChatState]:
         try:
-            doc_ref = self.collection.document(session_id)
-            doc = doc_ref.get()
+            from google.cloud import firestore
+            doc = self.collection.document(session_id).get()
             
             if doc.exists:
                 data = doc.to_dict()
                 # Update last accessed timestamp
-                doc_ref.update({"last_accessed": firestore.SERVER_TIMESTAMP})
+                self.collection.document(session_id).update({
+                    "last_accessed": firestore.SERVER_TIMESTAMP
+                })
+                
+                # Remove Firestore-specific fields
+                data.pop("last_accessed", None)
+                data.pop("last_updated", None)
+                
                 return ChatState(**data)
             return None
             
@@ -120,7 +127,8 @@ class FirestoreSessionManager(SessionManager):
     
     def save_session(self, session_id: str, chat_state: ChatState) -> bool:
         try:
-            data = chat_state.dict()
+            from google.cloud import firestore
+            data = chat_state.model_dump()
             data["last_updated"] = firestore.SERVER_TIMESTAMP
             data["last_accessed"] = firestore.SERVER_TIMESTAMP
             
@@ -141,7 +149,7 @@ class FirestoreSessionManager(SessionManager):
     
     def cleanup_expired_sessions(self, max_age_hours: int = 24) -> int:
         try:
-            cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+            cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
             
             # Query for expired sessions
             expired_docs = self.collection.where(
@@ -161,169 +169,12 @@ class FirestoreSessionManager(SessionManager):
             return 0
 
 
-class RedisSessionManager(SessionManager):
-    """Redis-based session manager for high-performance production use"""
-    
-    def __init__(self, redis_url: str = "redis://localhost:6379", 
-                 key_prefix: str = "chat_session:", 
-                 ttl_hours: int = 24):
-        try:
-            import redis
-            self.redis_client = redis.from_url(redis_url)
-            self.key_prefix = key_prefix
-            self.ttl_seconds = ttl_hours * 3600
-            logger.info(f"Redis session manager initialized with TTL: {ttl_hours}h")
-        except ImportError:
-            raise ImportError("redis not installed. Run: pip install redis")
-        except Exception as e:
-            logger.error(f"Failed to initialize Redis: {e}")
-            raise
-    
-    def get_session(self, session_id: str) -> Optional[ChatState]:
-        try:
-            key = f"{self.key_prefix}{session_id}"
-            data = self.redis_client.get(key)
-            
-            if data:
-                # Extend TTL on access
-                self.redis_client.expire(key, self.ttl_seconds)
-                return ChatState(**json.loads(data))
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error getting session {session_id} from Redis: {e}")
-            return None
-    
-    def save_session(self, session_id: str, chat_state: ChatState) -> bool:
-        try:
-            key = f"{self.key_prefix}{session_id}"
-            data = json.dumps(chat_state.dict())
-            
-            # Set with TTL
-            self.redis_client.setex(key, self.ttl_seconds, data)
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error saving session {session_id} to Redis: {e}")
-            return False
-    
-    def delete_session(self, session_id: str) -> bool:
-        try:
-            key = f"{self.key_prefix}{session_id}"
-            return bool(self.redis_client.delete(key))
-        except Exception as e:
-            logger.error(f"Error deleting session {session_id} from Redis: {e}")
-            return False
-    
-    def cleanup_expired_sessions(self, max_age_hours: int = 24) -> int:
-        # Redis automatically handles TTL, so no manual cleanup needed
-        logger.info("Redis automatically handles TTL expiration")
-        return 0
-
-
-class MongoDBSessionManager(SessionManager):
-    """MongoDB-based session manager for production use"""
-    
-    def __init__(self, connection_string: str, database_name: str = "chat_agent", 
-                 collection_name: str = "sessions"):
-        try:
-            from pymongo import MongoClient
-            from pymongo.errors import ConnectionFailure
-            
-            self.client = MongoClient(connection_string)
-            self.db = self.client[database_name]
-            self.collection = self.db[collection_name]
-            
-            # Create indexes for performance
-            self.collection.create_index("last_accessed", expireAfterSeconds=0)
-            self.collection.create_index("session_id", unique=True)
-            
-            # Test connection
-            self.client.admin.command('ping')
-            logger.info(f"MongoDB session manager initialized for database: {database_name}")
-            
-        except ImportError:
-            raise ImportError("pymongo not installed. Run: pip install pymongo")
-        except ConnectionFailure:
-            raise ConnectionError("Failed to connect to MongoDB")
-        except Exception as e:
-            logger.error(f"Failed to initialize MongoDB: {e}")
-            raise
-    
-    def get_session(self, session_id: str) -> Optional[ChatState]:
-        try:
-            doc = self.collection.find_one({"session_id": session_id})
-            
-            if doc:
-                # Update last accessed timestamp
-                self.collection.update_one(
-                    {"session_id": session_id},
-                    {"$set": {"last_accessed": datetime.utcnow()}}
-                )
-                
-                # Remove MongoDB-specific fields
-                doc.pop("_id", None)
-                doc.pop("last_accessed", None)
-                doc.pop("last_updated", None)
-                
-                return ChatState(**doc)
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error getting session {session_id} from MongoDB: {e}")
-            return None
-    
-    def save_session(self, session_id: str, chat_state: ChatState) -> bool:
-        try:
-            data = chat_state.dict()
-            data["last_updated"] = datetime.utcnow()
-            data["last_accessed"] = datetime.utcnow()
-            
-            # Upsert session
-            self.collection.replace_one(
-                {"session_id": session_id},
-                data,
-                upsert=True
-            )
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error saving session {session_id} to MongoDB: {e}")
-            return False
-    
-    def delete_session(self, session_id: str) -> bool:
-        try:
-            result = self.collection.delete_one({"session_id": session_id})
-            return result.deleted_count > 0
-        except Exception as e:
-            logger.error(f"Error deleting session {session_id} from MongoDB: {e}")
-            return False
-    
-    def cleanup_expired_sessions(self, max_age_hours: int = 24) -> int:
-        try:
-            cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
-            
-            result = self.collection.delete_many({
-                "last_accessed": {"$lt": cutoff_time}
-            })
-            
-            deleted_count = result.deleted_count
-            logger.info(f"Cleaned up {deleted_count} expired sessions from MongoDB")
-            return deleted_count
-            
-        except Exception as e:
-            logger.error(f"Error cleaning up expired sessions: {e}")
-            return 0
-
-
 def create_session_manager(manager_type: str, **kwargs) -> SessionManager:
     """Factory function to create session managers"""
     
     managers = {
         "memory": InMemorySessionManager,
-        "firestore": FirestoreSessionManager,
-        "redis": RedisSessionManager,
-        "mongodb": MongoDBSessionManager
+        "firestore": FirestoreSessionManager
     }
     
     if manager_type not in managers:

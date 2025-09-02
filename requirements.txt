@@ -11,8 +11,6 @@ python-multipart>=0.0.6
 
 # Session management backends (optional - install as needed)
 google-cloud-firestore>=2.11.0  # For Firestore session storage
-redis>=5.0.0  # For Redis session storage
-pymongo>=4.5.0  # For MongoDB session storage
 
 # Development and testing
 pytest>=7.4.0

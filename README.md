@@ -1,347 +1,534 @@
-# Custom Entity Extraction Agent
+# 🚀 Custom Entity Extraction Agent
 
-A sophisticated AI agent built with LangGraph and Vertex AI for extracting custom entities from various data structures, with special support for BC3 (Business Credit Bureau) data and generic JSON documents.
+> **Extract meaningful business insights from your data using AI!**
 
-## 🚀 Features
+## 🎯 What is This?
 
-- **Multi-Context Support**: Handles BC3 data, generic JSON documents, and custom data structures
-- **Intelligent Entity Extraction**: Extracts fields, segments, values, metadata, objects, arrays, and documents
-- **Chat History Management**: Maintains conversation context across requests
-- **Confidence Scoring**: Provides confidence scores for each extracted entity
-- **LangGraph Workflow**: Uses the latest LangGraph framework for robust agent workflows
-- **Vertex AI Integration**: Leverages Google's Vertex AI for advanced language model capabilities
-- **FastAPI REST API**: Clean, documented REST endpoints with automatic OpenAPI documentation
-- **Data Quality Analysis**: Provides insights about data structure quality and completeness
+Imagine you have a smart assistant that can look at your business data and automatically find **new, valuable insights** that weren't obvious before. That's exactly what this Custom Entity Extraction Agent does!
 
-## 📋 Requirements
+### 🌟 In Simple Terms:
+- **Input**: You give it some business data (like customer information, credit scores, account details)
+- **AI Magic**: It analyzes this data and finds **new patterns, relationships, and insights**
+- **Output**: You get **new business entities** that help you make better decisions
 
-- Python 3.8+
-- Google Cloud Project with Vertex AI enabled
-- Required Python packages (see `requirements.txt`)
+## 🏗️ How It Works (Simple Explanation)
 
-## 🛠️ Installation
+### 1. **Data Selection** 📊
+You pick which pieces of data you want the AI to analyze:
+- **BC3 Fields**: Business rules and definitions (like "Credit Score", "Account Number")
+- **Asset Columns**: Actual data from your databases (like customer credit scores, account balances)
 
-1. **Clone the repository**:
+### 2. **AI Analysis** 🤖
+The AI looks at your selected data and thinks:
+- "What new insights can I find here?"
+- "What relationships exist between these data points?"
+- "What business rules can I create?"
+
+### 3. **Entity Extraction** ✨
+The AI creates **new entities** like:
+- **Credit Risk Score** (combining credit score + debt + limit)
+- **Account Health Status** (based on multiple factors)
+- **Risk Alerts** (when certain conditions are met)
+
+## 🛠️ Tech Stack
+
+- **Backend**: FastAPI (Python web framework)
+- **AI Engine**: Google Vertex AI (Gemini 2.5 Flash Lite)
+- **Workflow**: LangGraph (AI workflow management)
+- **Session Storage**: In-memory (can be changed to Firestore, Redis, MongoDB)
+- **Frontend Demo**: Streamlit (for testing)
+
+## 🚀 Quick Start
+
+### 1. **Install Dependencies**
 ```bash
-git clone <repository-url>
-cd bc3_ai_agent
-```
+# Create virtual environment
+python -m venv .venv
 
-2. **Install dependencies**:
-```bash
+# Activate it
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install packages
 pip install -r requirements.txt
 ```
 
-3. **Set up environment variables**:
+### 2. **Set Up Google Cloud**
 ```bash
+# Set your Google Cloud project
 export GOOGLE_CLOUD_PROJECT="your-project-id"
-export GOOGLE_CLOUD_LOCATION="us-central1"  # Optional, defaults to us-central1
+export GOOGLE_APPLICATION_CREDENTIALS="path/to/your/service-account-key.json"
 ```
 
-4. **Authenticate with Google Cloud**:
+### 3. **Start the Backend**
 ```bash
-gcloud auth application-default login
+python main.py --port 8001
 ```
 
-## 🏃‍♂️ Quick Start
-
-### Running the API Server
-
+### 4. **Test the API**
 ```bash
-python main.py
+curl http://localhost:8001/health
 ```
 
-The API will be available at:
-- **API**: http://localhost:8000
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+## 📡 API Endpoints
 
-### Health Check
-
-```bash
-curl http://localhost:8000/health
+### 🔍 **Health Check**
+```http
+GET /health
 ```
-
-### Example: Extract BC3 Entities
-
-```bash
-curl -X POST "http://localhost:8000/extract-entities/bc3" \
-  -H "Content-Type: application/json" \
-  -d @sample_payloads.py
-```
-
-## 📊 Supported Data Types
-
-### 1. BC3 (Business Credit Bureau) Data
+**Response:**
 ```json
 {
-  "segment_name": "Account History",
-  "data_dictionary": [
+  "status": "healthy",
+  "timestamp": "2025-09-01T23:30:00.000000",
+  "version": "2.0.0"
+}
+```
+
+### 💬 **Chat with Agent**
+```http
+POST /chat
+```
+
+**Request Body:**
+```json
+{
+  "message": "Extract meaningful entities from the selected context",
+  "session_id": "user_session_123",
+  "selected_bc3_fields": [
     {
-      "definition": "Field description",
-      "bc3_field": "field_code",
-      "description": "Human-readable name",
-      "notes": "Additional context",
-      "valid_values": ["value1", "value2"]
+      "field": {
+        "description": "Credit Score",
+        "definition": "A numerical representation of creditworthiness",
+        "known_implementations": ["FICO", "VantageScore"],
+        "valid_values": ["300-850"],
+        "notes": "Higher scores indicate better credit"
+      },
+      "segment_context": {
+        "segment_name": "Credit Accounts"
+      }
+    }
+  ],
+  "selected_asset_columns": [
+    {
+      "column": {
+        "column_name": "credit_score",
+        "data_type": "INTEGER",
+        "description": "Customer credit score"
+      },
+      "asset_context": {
+        "asset_name": "Credit Database",
+        "workspace_name": "Financial Data",
+        "big_query_table_name": "credit.credit_scores"
+      }
     }
   ]
 }
 ```
 
-### 2. Generic JSON Documents
+**Response:**
 ```json
 {
-  "user_profile": {
-    "id": "user_12345",
-    "name": "John Doe",
-    "preferences": {
-      "theme": "dark",
-      "notifications": true
-    },
-    "subscriptions": [
-      {
-        "plan": "premium",
-        "features": ["api_access", "priority_support"]
-      }
-    ]
-  }
-}
-```
-
-## 🔧 API Endpoints
-
-### Core Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | Health check |
-| `POST` | `/extract-entities` | Generic entity extraction |
-| `POST` | `/extract-entities/bc3` | BC3-specific extraction |
-| `POST` | `/extract-entities/generic` | Generic JSON extraction |
-| `GET` | `/context-providers` | List supported providers |
-
-### Request Format
-
-```json
-{
-  "message": "Your analysis request",
-  "data": {
-    // Your data structure
-  },
-  "context_provider": "bc3|generic|custom",
-  "chat_history": [],
-  "session_id": "optional_session_id",
-  "tools_enabled": true,
-  "metadata": {}
-}
-```
-
-### Response Format
-
-```json
-{
-  "response": "AI-generated analysis",
+  "response": "EXTRACTED ENTITIES:\n1. Derived Business Metric: Credit Risk Score...",
   "extracted_entities": [
     {
-      "entity_type": "field|segment|value|metadata|object|array|document",
-      "entity_name": "entity_identifier",
-      "entity_value": "extracted_value",
-      "confidence": 0.95,
-      "source_field": "field_path",
-      "description": "Entity description",
-      "context_provider": "bc3|generic|custom"
+      "entity_type": "metadata",
+      "entity_name": "Credit Risk Score",
+      "entity_value": "[Calculated Value]",
+      "confidence": 0.9,
+      "source_field": "credit_score (Credit Database)",
+      "description": "Combined risk assessment based on credit score and utilization",
+      "context_provider": "credit_domain"
     }
   ],
-  "chat_history": [],
-  "session_id": "session_id",
-  "confidence_score": 0.92,
+  "chat_state": {...},
+  "confidence_score": 0.9,
   "processing_time": 2.34,
-  "metadata": {}
+  "metadata": {"session_id": "user_session_123"}
 }
 ```
 
-## 🏗️ Architecture
-
-### Agent Components
-
-1. **CustomEntityExtractionAgent**: Main agent class with LangGraph workflow
-2. **Entity Extraction Tools**: Specialized tools for different data types
-3. **LangGraph Workflow**: Three-node pipeline:
-   - `extract_entities`: Extract entities from data
-   - `analyze_structure`: Analyze data structure and quality
-   - `generate_response`: Generate AI response with insights
-
-### Data Models
-
-- **BC3Segment**: BC3-specific data structure
-- **GenericDocument**: Generic document structure
-- **ExtractedEntity**: Extracted entity representation
-- **AgentRequest/Response**: API request/response models
-
-## 🔍 Entity Types
-
-| Type | Description | Example |
-|------|-------------|---------|
-| `FIELD` | Individual data fields | `hist_eff_dte`, `user_id` |
-| `SEGMENT` | Business segments | `Account History` |
-| `VALUE` | Important values | `"History based value"` |
-| `METADATA` | Contextual information | Notes, timestamps |
-| `OBJECT` | Complex nested objects | User preferences |
-| `ARRAY` | List-based structures | Subscriptions array |
-| `DOCUMENT` | Document-level info | Root document structure |
-
-## 📈 Data Quality Analysis
-
-The agent provides comprehensive data quality insights:
-
-- **Data Quality Score**: Overall quality assessment (0-1)
-- **Field Completeness**: Percentage of fields with definitions
-- **Value Constraints**: Fields with valid value lists
-- **Structure Complexity**: Complexity score of data structure
-- **Type Distribution**: Distribution of data types
-
-## 🧪 Testing
-
-### Sample Data
-
-Use the sample data in `sample_payloads.py`:
-
-```python
-from sample_payloads import SAMPLE_BC3_REQUEST, SAMPLE_GENERIC_REQUEST
-
-# Test BC3 extraction
-response = requests.post("http://localhost:8000/extract-entities/bc3", 
-                        json=SAMPLE_BC3_REQUEST)
-
-# Test generic extraction
-response = requests.post("http://localhost:8000/extract-entities/generic", 
-                        json=SAMPLE_GENERIC_REQUEST)
+### 📊 **Get Session Entities**
+```http
+GET /entities/{session_id}
 ```
 
-### Running Tests
+**Response:**
+```json
+{
+  "session_id": "user_session_123",
+  "total_entities": 2,
+  "entities": [
+    {
+      "entity_number": 1,
+      "entity_type": "metadata",
+      "entity_name": "Credit Risk Score",
+      "entity_value": "[Calculated Value]",
+      "confidence": 0.9,
+      "source_field": "credit_score (Credit Database)",
+      "description": "Combined risk assessment based on credit score and utilization",
+      "context_provider": "credit_domain"
+    }
+  ],
+  "timestamp": "2025-09-01T23:30:00.000000"
+}
+```
 
+### 📋 **Get Context Providers**
+```http
+GET /context-providers
+```
+
+**Response:**
+```json
+{
+  "context_providers": [
+    {
+      "name": "credit_domain",
+      "description": "Credit Domain (BC3) data structures with business dictionary",
+      "features": ["Segment analysis", "Business dictionary extraction", "Field validation", "Implementation mapping"]
+    }
+  ]
+}
+```
+
+### 📝 **Get Logs**
+```http
+GET /logs?lines=50
+```
+
+**Response:**
+```json
+{
+  "log_file": "fastapi.log",
+  "total_lines": 150,
+  "recent_lines": ["2025-09-01 23:30:00 - INFO - Request processed..."],
+  "timestamp": "2025-09-01T23:30:00.000000"
+}
+```
+
+## 🎨 Frontend Integration Guide
+
+### **React Example**
+
+#### 1. **Install Dependencies**
 ```bash
-# Test health endpoint
-curl http://localhost:8000/health
+npm install axios
+```
 
-# Test context providers
-curl http://localhost:8000/context-providers
+#### 2. **Create API Service**
+```javascript
+// services/entityAgent.js
+import axios from 'axios';
 
-# Test entity extraction (use sample data)
-python -c "
-import requests
-from sample_payloads import SAMPLE_BC3_REQUEST
-response = requests.post('http://localhost:8000/extract-entities/bc3', 
-                        json=SAMPLE_BC3_REQUEST)
-print(response.json())
-"
+const API_BASE_URL = 'http://localhost:8001';
+
+export const entityAgentAPI = {
+  // Health check
+  checkHealth: () => axios.get(`${API_BASE_URL}/health`),
+  
+  // Chat with agent
+  chat: (payload) => axios.post(`${API_BASE_URL}/chat`, payload),
+  
+  // Get session entities
+  getEntities: (sessionId) => axios.get(`${API_BASE_URL}/entities/${sessionId}`),
+  
+  // Get context providers
+  getContextProviders: () => axios.get(`${API_BASE_URL}/context-providers`)
+};
+```
+
+#### 3. **Create Chat Component**
+```jsx
+// components/EntityChat.jsx
+import React, { useState, useEffect } from 'react';
+import { entityAgentAPI } from '../services/entityAgent';
+
+const EntityChat = () => {
+  const [message, setMessage] = useState('');
+  const [selectedBC3Fields, setSelectedBC3Fields] = useState([]);
+  const [selectedAssetColumns, setSelectedAssetColumns] = useState([]);
+  const [entities, setEntities] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      const payload = {
+        message,
+        session_id: `session_${Date.now()}`,
+        selected_bc3_fields: selectedBC3Fields,
+        selected_asset_columns: selectedAssetColumns
+      };
+      
+      const response = await entityAgentAPI.chat(payload);
+      setEntities(response.data.extracted_entities);
+      
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="entity-chat">
+      <h2>Custom Entity Extraction</h2>
+      
+      {/* BC3 Fields Selection */}
+      <div className="selection-section">
+        <h3>Select BC3 Fields</h3>
+        {/* Add your BC3 field selection UI here */}
+      </div>
+      
+      {/* Asset Columns Selection */}
+      <div className="selection-section">
+        <h3>Select Asset Columns</h3>
+        {/* Add your asset column selection UI here */}
+      </div>
+      
+      {/* Chat Form */}
+      <form onSubmit={handleSubmit}>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Ask the agent to extract entities..."
+          rows={4}
+        />
+        <button type="submit" disabled={loading}>
+          {loading ? 'Processing...' : 'Extract Entities'}
+        </button>
+      </form>
+      
+      {/* Results */}
+      {entities.length > 0 && (
+        <div className="results">
+          <h3>Extracted Entities ({entities.length})</h3>
+          {entities.map((entity, index) => (
+            <div key={index} className="entity-card">
+              <h4>{entity.entity_name}</h4>
+              <p><strong>Type:</strong> {entity.entity_type}</p>
+              <p><strong>Value:</strong> {entity.entity_value}</p>
+              <p><strong>Confidence:</strong> {entity.confidence}</p>
+              <p><strong>Description:</strong> {entity.description}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default EntityChat;
+```
+
+#### 4. **Add to Your App**
+```jsx
+// App.js
+import EntityChat from './components/EntityChat';
+
+function App() {
+  return (
+    <div className="App">
+      <header className="App-header">
+        <h1>Custom Entity Extraction Agent</h1>
+      </header>
+      <main>
+        <EntityChat />
+      </main>
+    </div>
+  );
+}
+```
+
+### **Vue.js Example**
+
+#### 1. **Install Dependencies**
+```bash
+npm install axios
+```
+
+#### 2. **Create API Service**
+```javascript
+// services/entityAgent.js
+import axios from 'axios';
+
+const API_BASE_URL = 'http://localhost:8001';
+
+export const entityAgentAPI = {
+  checkHealth: () => axios.get(`${API_BASE_URL}/health`),
+  chat: (payload) => axios.post(`${API_BASE_URL}/chat`, payload),
+  getEntities: (sessionId) => axios.get(`${API_BASE_URL}/entities/${sessionId}`),
+  getContextProviders: () => axios.get(`${API_BASE_URL}/context-providers`)
+};
+```
+
+#### 3. **Create Chat Component**
+```vue
+<!-- components/EntityChat.vue -->
+<template>
+  <div class="entity-chat">
+    <h2>Custom Entity Extraction</h2>
+    
+    <!-- BC3 Fields Selection -->
+    <div class="selection-section">
+      <h3>Select BC3 Fields</h3>
+      <!-- Add your BC3 field selection UI here -->
+    </div>
+    
+    <!-- Asset Columns Selection -->
+    <div class="selection-section">
+      <h3>Select Asset Columns</h3>
+      <!-- Add your asset column selection UI here -->
+    </div>
+    
+    <!-- Chat Form -->
+    <form @submit.prevent="handleSubmit">
+      <textarea
+        v-model="message"
+        placeholder="Ask the agent to extract entities..."
+        rows="4"
+      />
+      <button type="submit" :disabled="loading">
+        {{ loading ? 'Processing...' : 'Extract Entities' }}
+      </button>
+    </form>
+    
+    <!-- Results -->
+    <div v-if="entities.length > 0" class="results">
+      <h3>Extracted Entities ({{ entities.length }})</h3>
+      <div
+        v-for="(entity, index) in entities"
+        :key="index"
+        class="entity-card"
+      >
+        <h4>{{ entity.entity_name }}</h4>
+        <p><strong>Type:</strong> {{ entity.entity_type }}</p>
+        <p><strong>Value:</strong> {{ entity.entity_value }}</p>
+        <p><strong>Confidence:</strong> {{ entity.confidence }}</p>
+        <p><strong>Description:</strong> {{ entity.description }}</p>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import { entityAgentAPI } from '../services/entityAgent';
+
+export default {
+  name: 'EntityChat',
+  data() {
+    return {
+      message: '',
+      selectedBC3Fields: [],
+      selectedAssetColumns: [],
+      entities: [],
+      loading: false
+    };
+  },
+  methods: {
+    async handleSubmit() {
+      this.loading = true;
+      
+      try {
+        const payload = {
+          message: this.message,
+          session_id: `session_${Date.now()}`,
+          selected_bc3_fields: this.selectedBC3Fields,
+          selected_asset_columns: this.selectedAssetColumns
+        };
+        
+        const response = await entityAgentAPI.chat(payload);
+        this.entities = response.data.extracted_entities;
+        
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        this.loading = false;
+      }
+    }
+  }
+};
+</script>
 ```
 
 ## 🔧 Configuration
 
-### Environment Variables
+### **Environment Variables**
+```bash
+# Google Cloud
+GOOGLE_CLOUD_PROJECT=your-project-id
+GOOGLE_CLOUD_LOCATION=us-central1
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `GOOGLE_CLOUD_PROJECT` | Google Cloud Project ID | Required |
-| `GOOGLE_CLOUD_LOCATION` | Vertex AI location | `us-central1` |
+# LLM Settings
+LLM_MODEL_NAME=gemini-2.5-flash-lite
+LLM_TEMPERATURE=0.1
+LLM_MAX_OUTPUT_TOKENS=2048
 
-### Agent Configuration
-
-```python
-from agent import CustomEntityExtractionAgent
-
-agent = CustomEntityExtractionAgent(
-    project_id="your-project-id",
-    location="us-central1"
-)
+# Session Management
+SESSION_MANAGER_TYPE=memory  # Options: memory, firestore, redis, mongodb
 ```
+
+### **Session Manager Types**
+- **memory**: Fast, in-memory storage (default, good for development)
+- **firestore**: Google Cloud Firestore (good for production)
+- **redis**: Redis database (good for high-performance)
+- **mongodb**: MongoDB database (good for complex queries)
+
+## 🎯 Use Cases
+
+### **1. Credit Risk Assessment**
+- **Input**: Credit scores, debt levels, account balances
+- **Output**: Risk scores, utilization ratios, alert thresholds
+
+### **2. Customer Segmentation**
+- **Input**: Purchase history, demographics, behavior data
+- **Output**: Customer tiers, loyalty scores, churn risk
+
+### **3. Fraud Detection**
+- **Input**: Transaction patterns, account behavior, location data
+- **Output**: Risk indicators, anomaly scores, alert rules
+
+### **4. Business Intelligence**
+- **Input**: Sales data, customer data, operational metrics
+- **Output**: Performance indicators, trend analysis, predictive insights
 
 ## 🚀 Deployment
 
-### Local Development
-
+### **Local Development**
 ```bash
-python main.py
+python main.py --port 8001
 ```
 
-### Production Deployment
-
-1. **Docker** (recommended):
-```dockerfile
-FROM python:3.9-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY . .
-EXPOSE 8000
-CMD ["python", "main.py"]
-```
-
-2. **Google Cloud Run**:
+### **Production Deployment**
 ```bash
-gcloud run deploy custom-entity-agent \
-  --source . \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated
+# Using Gunicorn
+gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8001
+
+# Using Docker
+docker build -t entity-agent .
+docker run -p 8001:8001 entity-agent
 ```
-
-3. **Kubernetes**:
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: custom-entity-agent
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: custom-entity-agent
-  template:
-    metadata:
-      labels:
-        app: custom-entity-agent
-    spec:
-      containers:
-      - name: agent
-        image: custom-entity-agent:latest
-        ports:
-        - containerPort: 8000
-        env:
-        - name: GOOGLE_CLOUD_PROJECT
-          value: "your-project-id"
-```
-
-## 📚 Documentation
-
-- **API Documentation**: Available at `/docs` (Swagger UI) and `/redoc`
-- **Sample Payloads**: See `sample_payloads.py` for complete examples
-- **Code Documentation**: Inline documentation in all Python files
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
+4. Add tests
 5. Submit a pull request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.
 
 ## 🆘 Support
 
-For support and questions:
-- Check the API documentation at `/docs`
-- Review the sample payloads in `sample_payloads.py`
-- Open an issue in the repository
+- **Documentation**: Check this README
+- **Issues**: Create a GitHub issue
+- **Questions**: Check the examples above
 
-## 🔄 Changelog
+---
 
-### v1.0.0
-- Initial release with BC3 and generic entity extraction
-- LangGraph workflow implementation
-- FastAPI REST API
-- Comprehensive documentation and samples
+**Happy Entity Extraction! 🎉**

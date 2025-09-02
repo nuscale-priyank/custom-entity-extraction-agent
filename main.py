@@ -1,4 +1,6 @@
 import os
+import sys
+import time
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -8,23 +10,89 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
-from agent import CustomEntityExtractionAgent
+from agent import CreditDomainEntityExtractionAgent
 from models import (
     AgentRequest, AgentResponse, HealthResponse, 
-    BC3Segment, GenericDocument, ChatMessage
+    CreditDomainSegment, DataAsset, ChatState
 )
+from config import load_config_from_env, get_session_manager_kwargs
+from session_managers import create_session_manager
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure enhanced logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('fastapi.log')
+    ]
+)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app
+# Create logs directory if it doesn't exist
+os.makedirs('logs', exist_ok=True)
+
+# Add CORS middleware (will be added after app initialization)
+
+# Global agent instance
+agent: Optional[CreditDomainEntityExtractionAgent] = None
+
+
+def get_agent() -> CreditDomainEntityExtractionAgent:
+    """Get or create the agent instance"""
+    global agent
+    if agent is None:
+        # Load configuration from environment
+        agent_config, session_config, logging_config = load_config_from_env()
+        
+        # Configure logging
+        logging.basicConfig(
+            level=getattr(logging, logging_config.level),
+            format=logging_config.format,
+            filename=logging_config.file_path
+        )
+        
+        # Create session manager
+        session_manager_kwargs = get_session_manager_kwargs(session_config)
+        session_manager = create_session_manager(
+            session_config.manager_type, 
+            **session_manager_kwargs
+        )
+        
+        # Initialize agent with configuration
+        agent = CreditDomainEntityExtractionAgent(
+            project_id=agent_config.project_id,
+            location=agent_config.location,
+            session_manager=session_manager
+        )
+        
+        logger.info(f"Initialized CreditDomainEntityExtractionAgent with project: {agent_config.project_id}")
+        logger.info(f"Using {session_config.manager_type} session manager")
+    
+    return agent
+
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for FastAPI"""
+    try:
+        get_agent()
+        logger.info("Credit Domain Entity Extraction Chat Agent initialized successfully")
+        yield
+    except Exception as e:
+        logger.error(f"Failed to initialize agent: {e}")
+        raise
+
+# Initialize FastAPI app with lifespan
 app = FastAPI(
-    title="Custom Entity Extraction Agent API",
-    description="AI Agent for extracting custom entities from various data structures using LangGraph and Vertex AI",
-    version="1.0.0",
+    title="Credit Domain Entity Extraction Chat Agent API",
+    description="AI Chat Agent for extracting custom entities from Credit Domain data and data assets using LangGraph and Vertex AI",
+    version="2.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -36,38 +104,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global agent instance
-agent: Optional[CustomEntityExtractionAgent] = None
-
-
-def get_agent() -> CustomEntityExtractionAgent:
-    """Get or create the agent instance"""
-    global agent
-    if agent is None:
-        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-        if not project_id:
-            raise HTTPException(
-                status_code=500,
-                detail="GOOGLE_CLOUD_PROJECT environment variable not set"
-            )
-        
-        location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
-        agent = CustomEntityExtractionAgent(project_id=project_id, location=location)
-        logger.info(f"Initialized CustomEntityExtractionAgent with project: {project_id}")
-    
-    return agent
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the agent on startup"""
-    try:
-        get_agent()
-        logger.info("Custom Entity Extraction Agent initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize agent: {e}")
-        raise
-
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -75,154 +111,226 @@ async def health_check():
     return HealthResponse(
         status="healthy",
         timestamp=datetime.now(),
-        version="1.0.0"
+        version="2.0.0"
     )
 
 
-@app.post("/extract-entities", response_model=AgentResponse)
-async def extract_entities(
+@app.post("/chat", response_model=AgentResponse)
+async def chat_with_agent(
     request: AgentRequest,
-    agent: CustomEntityExtractionAgent = Depends(get_agent)
+    agent: CreditDomainEntityExtractionAgent = Depends(get_agent)
 ):
     """
-    Extract custom entities from data structures
+    Chat with the Credit Domain Entity Extraction Agent
     
-    This endpoint processes various types of data structures and extracts meaningful entities.
-    Supports BC3 data, generic JSON documents, and other structured data formats.
+    This endpoint provides a conversational interface for entity extraction.
+    The agent will analyze selected BC3 fields and asset columns to extract
+    relevant entities based on the user's request and selected context.
     
     **Features:**
-    - Entity extraction from multiple data types
-    - Chat history maintenance
-    - Context-aware analysis
-    - Confidence scoring
-    - Processing time tracking
+    - Context-aware entity extraction
+    - Individual BC3 field and asset column selection
+    - Session management with state persistence
+    - Intelligent entity relevance determination
+    - LLM-driven entity extraction
+    - Context combination analysis
     
-    **Supported Context Providers:**
-    - `bc3`: Business Credit Bureau data
-    - `generic`: Generic JSON documents
-    - `custom`: Custom data structures
+    **Workflow:**
+    1. User selects specific BC3 fields and asset columns
+    2. User sends a message requesting entity extraction
+    3. Agent analyzes the selected context combinations
+    4. LLM determines relevant entities based on context
+    5. Response includes extracted entities and analysis
     """
     try:
-        logger.info(f"Processing entity extraction request for session: {request.session_id}")
+        start_time = time.time()
+        
+        logger.info(f"Chat request received - Session: {request.session_id}")
+        logger.info(f"Message: {request.message[:100]}...")
+        logger.info(f"Selected BC3 fields: {len(request.selected_bc3_fields or [])}")
+        logger.info(f"Selected asset columns: {len(request.selected_asset_columns or [])}")
         
         # Process the request
         response = agent.process_request(request)
         
-        # Check for errors and return appropriate status code
-        if response.metadata.get("has_error", False):
-            logger.warning(f"Entity extraction completed with errors: {response.metadata.get('error_message', 'Unknown error')}")
-            # Return response with 500 status code using FastAPI Response
-            return Response(
-                content=response.model_dump_json(),
-                status_code=500,
-                media_type="application/json"
-            )
+        processing_time = time.time() - start_time
+        response.processing_time = processing_time
+        
+        logger.info(f"Chat request processed successfully - Time: {processing_time:.2f}s")
+        logger.info(f"Extracted entities: {len(response.extracted_entities)}")
+        
+        # Enhanced entity logging
+        if response.extracted_entities:
+            logger.info("🔍 DETAILED ENTITY EXTRACTION RESULTS:")
+            logger.info("=" * 60)
+            
+            for i, entity in enumerate(response.extracted_entities, 1):
+                logger.info(f"📊 Entity #{i}:")
+                logger.info(f"   Type: {entity.entity_type}")
+                logger.info(f"   Name: {entity.entity_name}")
+                logger.info(f"   Value: {entity.entity_value}")
+                logger.info(f"   Confidence: {entity.confidence}")
+                logger.info(f"   Source: {entity.source_field}")
+                logger.info(f"   Description: {entity.description}")
+                logger.info(f"   Context Provider: {entity.context_provider}")
+                logger.info("   " + "-" * 40)
+            
+            logger.info("=" * 60)
+            logger.info(f"✅ Total entities extracted: {len(response.extracted_entities)}")
         else:
-            logger.info(f"Successfully extracted {len(response.extracted_entities)} entities")
-            return response
+            logger.warning("⚠️ No entities were extracted from the request")
+        
+        return response
         
     except Exception as e:
-        logger.error(f"Error processing entity extraction request: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to extract entities: {str(e)}"
+        processing_time = time.time() - start_time
+        logger.error(f"Error processing chat request: {e}")
+        logger.error(f"Processing time: {processing_time:.2f}s")
+        
+        # Return error response
+        error_response = AgentResponse(
+            response=f"Error processing request: {str(e)}",
+            extracted_entities=[],
+            chat_state=ChatState(
+                session_id=request.session_id or "unknown",
+                messages=[],
+                selected_segments=[],
+                selected_assets=[],
+                selected_bc3_fields=[],
+                selected_asset_columns=[],
+                extracted_entities=[],
+                metadata={"error": str(e)}
+            ),
+            metadata={
+                "session_id": request.session_id,
+                "processing_time": processing_time,
+                "error": str(e),
+                "timestamp": datetime.now()
+            }
+        )
+        
+        return JSONResponse(
+            content=error_response.model_dump(),
+            status_code=500
         )
 
 
-@app.post("/extract-entities/bc3", response_model=AgentResponse)
-async def extract_bc3_entities(
+@app.post("/chat/credit-domain", response_model=AgentResponse)
+async def chat_with_credit_domain_data(
     request: AgentRequest,
-    agent: CustomEntityExtractionAgent = Depends(get_agent)
+    agent: CreditDomainEntityExtractionAgent = Depends(get_agent)
 ):
     """
-    Extract entities specifically from BC3 data structures
+    Chat with Credit Domain data specifically
     
-    This endpoint is optimized for BC3 (Business Credit Bureau) data analysis.
-    It automatically sets the context provider to 'bc3' for specialized processing.
+    This endpoint is optimized for Credit Domain (BC3) data analysis.
+    It automatically sets the context provider to 'credit_domain' for specialized processing.
     
-    **BC3 Data Structure:**
+    **Credit Domain Data Structure:**
     - segment_name: Business segment identifier
-    - data_dictionary: Array of field definitions with:
-      - definition: Field description
-      - bc3_field: Technical field identifier
-      - description: Human-readable name
-      - notes: Additional context
+    - business_dictionary: Array of field definitions with:
+      - uuid: Unique field identifier
+      - known_implementations: Known implementation names
       - valid_values: Acceptable values
+      - definition: Field description
+      - notes: Additional context
+      - description: Human-readable name
     """
     try:
-        # Ensure context provider is set to bc3
-        request.context_provider = "bc3"
+        # Ensure context provider is set to credit_domain
+        request.context_provider = "credit_domain"
         
-        logger.info(f"Processing BC3 entity extraction request for session: {request.session_id}")
+        logger.info(f"Processing Credit Domain chat request for session: {request.session_id}")
         
         # Process the request
         response = agent.process_request(request)
         
         # Check for errors and return appropriate status code
-        if response.metadata.get("has_error", False):
-            logger.warning(f"BC3 entity extraction completed with errors: {response.metadata.get('error_message', 'Unknown error')}")
-            # Return response with 500 status code using FastAPI Response
+        if response.metadata.get("error"):
+            logger.warning(f"Credit Domain chat request completed with errors: {response.metadata.get('error', 'Unknown error')}")
             return Response(
                 content=response.model_dump_json(),
                 status_code=500,
                 media_type="application/json"
             )
         else:
-            logger.info(f"Successfully extracted {len(response.extracted_entities)} BC3 entities")
+            logger.info(f"Successfully processed Credit Domain chat request with {len(response.extracted_entities)} entities")
             return response
         
     except Exception as e:
-        logger.error(f"Error processing BC3 entity extraction request: {e}")
+        logger.error(f"Error processing Credit Domain chat request: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to extract BC3 entities: {str(e)}"
+            detail=f"Failed to process Credit Domain chat request: {str(e)}"
         )
 
 
-@app.post("/extract-entities/generic", response_model=AgentResponse)
-async def extract_generic_entities(
-    request: AgentRequest,
-    agent: CustomEntityExtractionAgent = Depends(get_agent)
+@app.get("/sessions/{session_id}", response_model=ChatState)
+async def get_session(
+    session_id: str,
+    agent: CreditDomainEntityExtractionAgent = Depends(get_agent)
 ):
     """
-    Extract entities from generic data structures
+    Get session information by session ID
     
-    This endpoint processes generic JSON documents and other data structures.
-    It automatically sets the context provider to 'generic' for flexible processing.
-    
-    **Supported Data Types:**
-    - Nested JSON objects
-    - Arrays and lists
-    - Mixed data structures
-    - Custom document formats
+    Retrieve the current state of a chat session including:
+    - Chat messages
+    - Selected Credit Domain segments
+    - Selected data assets
+    - Extracted entities
+    - Session metadata
     """
     try:
-        # Ensure context provider is set to generic
-        request.context_provider = "generic"
-        
-        logger.info(f"Processing generic entity extraction request for session: {request.session_id}")
-        
-        # Process the request
-        response = agent.process_request(request)
-        
-        # Check for errors and return appropriate status code
-        if response.metadata.get("has_error", False):
-            logger.warning(f"Generic entity extraction completed with errors: {response.metadata.get('error_message', 'Unknown error')}")
-            # Return response with 500 status code using FastAPI Response
-            return Response(
-                content=response.model_dump_json(),
-                status_code=500,
-                media_type="application/json"
+        session = agent.get_session(session_id)
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Session {session_id} not found"
             )
-        else:
-            logger.info(f"Successfully extracted {len(response.extracted_entities)} generic entities")
-            return response
         
+        return session
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error processing generic entity extraction request: {e}")
+        logger.error(f"Error retrieving session {session_id}: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to extract generic entities: {str(e)}"
+            detail=f"Failed to retrieve session: {str(e)}"
+        )
+
+
+@app.delete("/sessions/{session_id}")
+async def delete_session(
+    session_id: str,
+    agent: CreditDomainEntityExtractionAgent = Depends(get_agent)
+):
+    """
+    Delete a session by session ID
+    
+    Remove a chat session and all its associated data including:
+    - Chat messages
+    - Selected segments and assets
+    - Extracted entities
+    - Session metadata
+    """
+    try:
+        deleted = agent.delete_session(session_id)
+        if not deleted:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Session {session_id} not found"
+            )
+        
+        return {"message": f"Session {session_id} deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting session {session_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete session: {str(e)}"
         )
 
 
@@ -232,22 +340,119 @@ async def get_context_providers():
     return {
         "context_providers": [
             {
-                "name": "bc3",
-                "description": "Business Credit Bureau data structures",
-                "features": ["Segment analysis", "Field extraction", "Value validation"]
+                "name": "credit_domain",
+                "description": "Credit Domain (BC3) data structures with business dictionary",
+                "features": ["Segment analysis", "Business dictionary extraction", "Field validation", "Implementation mapping"]
+            },
+            {
+                "name": "data_assets",
+                "description": "Data assets with column information and BigQuery integration",
+                "features": ["Asset analysis", "Column extraction", "Workspace integration", "BigQuery table mapping"]
             },
             {
                 "name": "generic",
-                "description": "Generic JSON documents and data structures",
-                "features": ["Nested object analysis", "Array processing", "Type detection"]
-            },
-            {
-                "name": "custom",
-                "description": "Custom data structures",
+                "description": "Generic data structures and documents",
                 "features": ["Flexible processing", "Custom entity types", "Adaptive analysis"]
             }
         ]
     }
+
+@app.get("/logs")
+async def get_logs(lines: int = 50):
+    """Get recent FastAPI logs"""
+    try:
+        log_file = "fastapi.log"
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as f:
+                all_lines = f.readlines()
+                # Get the last N lines
+                recent_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+                return {
+                    "log_file": log_file,
+                    "total_lines": len(all_lines),
+                    "recent_lines": recent_lines,
+                    "timestamp": datetime.now().isoformat()
+                }
+        else:
+            return {
+                "log_file": log_file,
+                "total_lines": 0,
+                "recent_lines": [],
+                "message": "Log file not found. Check terminal output for logs.",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"Error reading logs: {e}")
+        return {
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@app.get("/entities/{session_id}")
+async def get_session_entities(
+    session_id: str,
+    agent: CreditDomainEntityExtractionAgent = Depends(get_agent)
+):
+    """Get extracted entities for a specific session in a clean, ordered format"""
+    try:
+        # Get the session
+        session = agent.session_manager.get_session(session_id)
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Session {session_id} not found"
+            )
+        
+        # Format entities for clean display
+        formatted_entities = []
+        for i, entity in enumerate(session.extracted_entities, 1):
+            formatted_entity = {
+                "entity_number": i,
+                "entity_type": entity.entity_type,
+                "entity_name": entity.entity_name,
+                "entity_value": entity.entity_value,
+                "confidence": entity.confidence,
+                "source_field": entity.source_field,
+                "description": entity.description,
+                "context_provider": entity.context_provider
+            }
+            formatted_entities.append(formatted_entity)
+        
+        return {
+            "session_id": session_id,
+            "total_entities": len(formatted_entities),
+            "entities": formatted_entities,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting session entities: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get session entities: {str(e)}"
+        )
+
+
+@app.get("/sessions")
+async def list_sessions(
+    agent: CreditDomainEntityExtractionAgent = Depends(get_agent)
+):
+    """List all active sessions"""
+    try:
+        sessions = list(agent.sessions.keys())
+        return {
+            "sessions": sessions,
+            "total_sessions": len(sessions)
+        }
+    except Exception as e:
+        logger.error(f"Error listing sessions: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list sessions: {str(e)}"
+        )
 
 
 if __name__ == "__main__":
@@ -262,7 +467,7 @@ if __name__ == "__main__":
             print(f"Invalid port number: {sys.argv[2]}")
             sys.exit(1)
     
-    print(f"Starting Custom Entity Extraction Agent on port {port}")
+    print(f"Starting Credit Domain Entity Extraction Chat Agent on port {port}")
     print(f"API Documentation: http://localhost:{port}/docs")
     print(f"Health Check: http://localhost:{port}/health")
     

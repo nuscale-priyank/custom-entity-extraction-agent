@@ -4,19 +4,36 @@ from datetime import datetime
 from enum import Enum
 
 
-class BC3Field(BaseModel):
-    """Model for individual BC3 field definition"""
-    definition: str = Field(description="Definition of the field")
-    bc3_field: str = Field(description="BC3 field identifier")
-    description: str = Field(description="Human-readable description")
-    notes: str = Field(default="", description="Additional notes")
+class BusinessDictionaryField(BaseModel):
+    """Model for individual business dictionary field definition"""
+    uuid: str = Field(description="Unique identifier for the field")
+    known_implementations: List[str] = Field(description="Known implementation names")
     valid_values: List[str] = Field(default=[], description="Valid values for the field")
+    definition: str = Field(description="Definition of the field")
+    notes: str = Field(default="", description="Additional notes")
+    description: str = Field(description="Human-readable description")
 
 
-class BC3Segment(BaseModel):
-    """Model for BC3 segment data"""
+class CreditDomainSegment(BaseModel):
+    """Model for Credit Domain segment data"""
     segment_name: str = Field(description="Name of the segment")
-    data_dictionary: List[BC3Field] = Field(description="List of field definitions")
+    business_dictionary: List[BusinessDictionaryField] = Field(description="List of business dictionary fields")
+
+
+class DataAssetColumn(BaseModel):
+    """Model for data asset column information"""
+    column_name: str = Field(description="Name of the column")
+    column: str = Field(description="Column identifier")
+
+
+class DataAsset(BaseModel):
+    """Model for data asset information"""
+    asset_id: str = Field(description="Unique asset identifier")
+    asset_name: str = Field(description="Name of the asset")
+    workspace_id: str = Field(description="Workspace identifier")
+    workspace_name: str = Field(description="Name of the workspace")
+    big_query_table_name: str = Field(description="BigQuery table name")
+    columns: List[DataAssetColumn] = Field(description="List of columns")
 
 
 class GenericDataField(BaseModel):
@@ -45,6 +62,8 @@ class EntityType(str, Enum):
     DOCUMENT = "document"
     OBJECT = "object"
     ARRAY = "array"
+    ASSET = "asset"
+    COLUMN = "column"
 
 
 class ExtractedEntity(BaseModel):
@@ -55,7 +74,7 @@ class ExtractedEntity(BaseModel):
     confidence: float = Field(description="Confidence score (0-1)")
     source_field: str = Field(description="Source field")
     description: str = Field(description="Description of the entity")
-    context_provider: str = Field(description="Context provider (e.g., BC3, generic)")
+    context_provider: str = Field(description="Context provider (e.g., credit_domain, generic)")
 
 
 class ChatMessage(BaseModel):
@@ -65,13 +84,28 @@ class ChatMessage(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
+class ChatState(BaseModel):
+    """Model for chat state management"""
+    session_id: str = Field(description="Session identifier")
+    messages: List[ChatMessage] = Field(default=[], description="Chat messages")
+    selected_segments: List[CreditDomainSegment] = Field(default=[], description="Selected credit domain segments")
+    selected_assets: List[DataAsset] = Field(default=[], description="Selected data assets")
+    selected_bc3_fields: List[Dict[str, Any]] = Field(default=[], description="Selected BC3 fields with context")
+    selected_asset_columns: List[Dict[str, Any]] = Field(default=[], description="Selected asset columns with context")
+    extracted_entities: List[ExtractedEntity] = Field(default=[], description="Extracted entities")
+    metadata: Dict[str, Any] = Field(default={}, description="Additional metadata")
+
+
 class AgentRequest(BaseModel):
     """Request model for the AI agent"""
     message: str = Field(description="User input message")
-    data: Union[BC3Segment, GenericDocument, Dict[str, Any]] = Field(description="Data to analyze")
-    context_provider: str = Field(default="generic", description="Context provider type")
-    chat_history: List[ChatMessage] = Field(default=[], description="Previous chat messages")
     session_id: Optional[str] = Field(default=None, description="Session identifier")
+    credit_domain_data: Optional[List[CreditDomainSegment]] = Field(default=None, description="Credit domain data")
+    data_assets: Optional[List[DataAsset]] = Field(default=None, description="Data assets")
+    selected_bc3_fields: Optional[List[Dict[str, Any]]] = Field(default=None, description="Selected BC3 fields with context")
+    selected_asset_columns: Optional[List[Dict[str, Any]]] = Field(default=None, description="Selected asset columns with context")
+    generic_data: Optional[Union[GenericDocument, Dict[str, Any]]] = Field(default=None, description="Generic data")
+    context_provider: str = Field(default="credit_domain", description="Context provider type")
     tools_enabled: bool = Field(default=True, description="Whether to enable tools")
     metadata: Dict[str, Any] = Field(default={}, description="Additional metadata")
 
@@ -80,8 +114,7 @@ class AgentResponse(BaseModel):
     """Response model for the AI agent"""
     response: str = Field(description="Agent's response message")
     extracted_entities: List[ExtractedEntity] = Field(description="List of extracted entities")
-    chat_history: List[ChatMessage] = Field(description="Updated chat history")
-    session_id: str = Field(description="Session identifier")
+    chat_state: ChatState = Field(description="Updated chat state")
     confidence_score: float = Field(description="Overall confidence score")
     processing_time: float = Field(description="Processing time in seconds")
     metadata: Dict[str, Any] = Field(default={}, description="Additional response metadata")
@@ -95,10 +128,24 @@ class HealthResponse(BaseModel):
 
 
 # Backward compatibility aliases
-class BC3AgentRequest(AgentRequest):
+class BC3Segment(CreditDomainSegment):
     """Backward compatibility for BC3-specific requests"""
-    bc3_data: BC3Segment = Field(description="BC3 data to analyze")
+    pass
+
+
+class BC3Field(BusinessDictionaryField):
+    """Backward compatibility for BC3 field definitions"""
+    bc3_field: str = Field(description="BC3 field identifier")
     
     @property
-    def data(self) -> BC3Segment:
+    def known_implementations(self) -> List[str]:
+        return [self.bc3_field] if hasattr(self, 'bc3_field') else []
+
+
+class BC3AgentRequest(AgentRequest):
+    """Backward compatibility for BC3-specific requests"""
+    bc3_data: Optional[List[BC3Segment]] = Field(default=None, description="BC3 data to analyze")
+    
+    @property
+    def credit_domain_data(self) -> Optional[List[CreditDomainSegment]]:
         return self.bc3_data

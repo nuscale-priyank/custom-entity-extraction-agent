@@ -118,6 +118,7 @@ class AgentRequest(BaseModel):
 class AgentResponse(BaseModel):
     """Response model for the AI agent"""
     response: str = Field(description="Agent's response message")
+    chat_output: str = Field(description="Formatted chat output with bulleted entities and relationships")
     extracted_entities: List[ExtractedEntity] = Field(description="List of extracted entities")
     chat_state: ChatState = Field(description="Updated chat state")
     confidence_score: float = Field(description="Overall confidence score")

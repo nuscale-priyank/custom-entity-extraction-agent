@@ -666,6 +666,68 @@ class CreditDomainEntityExtractionAgent:
         else:
             return EntityType.METADATA
     
+    def _generate_chat_output(self, entities: List[ExtractedEntity], response_text: str) -> str:
+        """Generate formatted chat output with bulleted entities and relationships"""
+        try:
+            output_lines = []
+            
+            # Add the main response
+            if response_text and not response_text.startswith("```json"):
+                output_lines.append("🤖 **AI Response:**")
+                output_lines.append(response_text)
+                output_lines.append("")
+            
+            # Add extracted entities section
+            if entities:
+                output_lines.append("🔍 **Extracted Entities & Relationships:**")
+                output_lines.append("")
+                
+                # Group entities by type
+                entity_groups = {}
+                for entity in entities:
+                    entity_type = entity.entity_type.value if hasattr(entity.entity_type, 'value') else str(entity.entity_type)
+                    if entity_type not in entity_groups:
+                        entity_groups[entity_type] = []
+                    entity_groups[entity_type].append(entity)
+                
+                # Format each group
+                for entity_type, group_entities in entity_groups.items():
+                    # Format entity type header
+                    type_header = entity_type.replace('_', ' ').title()
+                    output_lines.append(f"**{type_header}s:**")
+                    
+                    for entity in group_entities:
+                        # Main entity bullet
+                        confidence_emoji = "🟢" if entity.confidence >= 0.9 else "🟡" if entity.confidence >= 0.7 else "🔴"
+                        output_lines.append(f"  • **{entity.entity_name}** {confidence_emoji} (Confidence: {entity.confidence:.2f})")
+                        
+                        # Entity details
+                        if entity.description:
+                            output_lines.append(f"    - Description: {entity.description}")
+                        if entity.source_field:
+                            output_lines.append(f"    - Source: {entity.source_field}")
+                        if entity.entity_value:
+                            output_lines.append(f"    - Value: {entity.entity_value}")
+                        
+                        # Relationships
+                        if entity.relationships:
+                            output_lines.append(f"    - Relationships:")
+                            for rel_type, rel_target in entity.relationships.items():
+                                output_lines.append(f"      • {rel_type}: {rel_target}")
+                        
+                        output_lines.append("")
+                
+                # Add summary
+                output_lines.append(f"📊 **Summary:** Extracted {len(entities)} entities across {len(entity_groups)} categories")
+            else:
+                output_lines.append("⚠️ **No entities extracted** - Please check your input data and try again.")
+            
+            return "\n".join(output_lines)
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating chat output: {e}")
+            return f"Error generating formatted output: {str(e)}"
+    
     def process_request(self, request: AgentRequest) -> AgentResponse:
         """Process a chat request and return response"""
         start_time = time.time()
@@ -740,10 +802,14 @@ class CreditDomainEntityExtractionAgent:
             # Save session
             self.session_manager.save_session(session_id, chat_state)
             
+            # Generate formatted chat output
+            chat_output = self._generate_chat_output(chat_state.extracted_entities, response_text)
+            
             processing_time = time.time() - start_time
             
             return AgentResponse(
                 response=response_text,
+                chat_output=chat_output,
                 extracted_entities=chat_state.extracted_entities,
                 chat_state=chat_state,
                 confidence_score=0.9,  # Default confidence
@@ -755,6 +821,7 @@ class CreditDomainEntityExtractionAgent:
             processing_time = time.time() - start_time
             return AgentResponse(
                 response=f"Error processing request: {str(e)}",
+                chat_output=f"❌ **Error:** {str(e)}",
                 extracted_entities=[],
                 chat_state=ChatState(session_id=request.session_id or str(uuid.uuid4())),
                 confidence_score=0.0,

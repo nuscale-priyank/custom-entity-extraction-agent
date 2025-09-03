@@ -238,7 +238,7 @@ class LLMManager:
     
     def get_system_prompt(self) -> str:
         """Get the system prompt for the Credit Domain agent"""
-        return """You are PBS Buddy – a specialized friendly chatbot designed to help users create and extract custom entities from Credit Domain (BC3) data and data assets.
+        return """You are a specialized AI agent designed to help users create and extract custom entities from Credit Domain (BC3) data and data assets.
 
 IMPORTANT: You can extract both obvious entities from the context AND create meaningful derived entities by fusing the context.
 

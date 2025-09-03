@@ -64,6 +64,10 @@ class EntityType(str, Enum):
     ARRAY = "array"
     ASSET = "asset"
     COLUMN = "column"
+    BUSINESS_METRIC = "business_metric"
+    RELATIONSHIP = "relationship"
+    DERIVED_INSIGHT = "derived_insight"
+    OPERATIONAL_RULE = "operational_rule"
 
 
 class ExtractedEntity(BaseModel):
@@ -74,6 +78,7 @@ class ExtractedEntity(BaseModel):
     confidence: float = Field(description="Confidence score (0-1)")
     source_field: str = Field(description="Source field")
     description: str = Field(description="Description of the entity")
+    relationships: Dict[str, str] = Field(default={}, description="Relationships with other entities")
     context_provider: str = Field(description="Context provider (e.g., credit_domain, generic)")
 
 

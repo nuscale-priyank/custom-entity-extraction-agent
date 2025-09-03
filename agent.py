@@ -196,6 +196,7 @@ class LLMManager:
         self.project_id = project_id
         self.location = location
         self.llm = self._initialize_llm()
+        self.tools = self._initialize_tools()
     
     def _initialize_llm(self) -> ChatVertexAI:
         """Initialize Vertex AI LLM"""
@@ -207,74 +208,112 @@ class LLMManager:
             max_output_tokens=2048
         )
     
+    def _initialize_tools(self) -> List:
+        """Initialize extraction tools"""
+        from langchain_core.tools import tool
+        
+        @tool
+        def extract_credit_domain_entities(segment_data: str) -> str:
+            """Extract entities from Credit Domain segment data. Input should be JSON string of segment data."""
+            try:
+                import json
+                segment_dict = json.loads(segment_data)
+                entities = EntityExtractor.extract_credit_domain_entities(segment_dict)
+                return json.dumps(entities, indent=2)
+            except Exception as e:
+                return f"Error extracting credit domain entities: {str(e)}"
+        
+        @tool
+        def extract_data_asset_entities(asset_data: str) -> str:
+            """Extract entities from data asset information. Input should be JSON string of asset data."""
+            try:
+                import json
+                asset_dict = json.loads(asset_data)
+                entities = EntityExtractor.extract_data_asset_entities(asset_dict)
+                return json.dumps(entities, indent=2)
+            except Exception as e:
+                return f"Error extracting data asset entities: {str(e)}"
+        
+        return [extract_credit_domain_entities, extract_data_asset_entities]
+    
     def get_system_prompt(self) -> str:
         """Get the system prompt for the Credit Domain agent"""
         return """You are PBS Buddy – a specialized friendly chatbot designed to help users create and extract custom entities from Credit Domain (BC3) data and data assets.
 
-IMPORTANT: You MUST extract NEW, MEANINGFUL entities based on the provided context. Do not just echo what's already there.
+IMPORTANT: You can extract both obvious entities from the context AND create meaningful derived entities by fusing the context.
 
 CRITICAL: The context is ALREADY provided below. Do not ask for more context.
 
 ⚠️ WARNING: If you see "Selected BC3 Fields:" and "Selected Asset Columns:" below, the context IS ALREADY PROVIDED. Do not say "Once you provide the context" or similar phrases.
 
+AVAILABLE TOOLS:
+- extract_credit_domain_entities: Use this tool to extract structured entities from BC3 segment data
+- extract_data_asset_entities: Use this tool to extract structured entities from data asset information
+
 Your primary responsibilities:
 
-1. **MANDATORY NEW Entity Extraction**: 
-   - You MUST analyze the selected BC3 fields and asset columns that are ALREADY provided
-   - You MUST extract NEW entities that are NOT directly in the context
-   - Focus on DERIVED entities, RELATIONSHIPS, and BUSINESS INSIGHTS
-   - Each entity should represent a NEW concept derived from the context
+1. **Entity Extraction Strategy**: 
+   - First, extract obvious entities from the selected BC3 fields and asset columns
+   - Then, fuse the context to create meaningful derived entities and relationships
+   - Focus on BUSINESS INSIGHTS, RELATIONSHIPS, and OPERATIONAL VALUE
 
 2. **Context Analysis**: 
    - Analyze the selected BC3 fields and asset columns provided by the user
+   - Use tools to extract structured entities when needed
    - Understand the relationships between different data elements
    - Identify business-relevant entities based on the selected context
 
 3. **Intelligent Entity Extraction**:
+   - Use the available tools to extract structured entities from the context
    - Based on the user's message and selected context, determine what entities are relevant
    - Extract entities that make business sense given the combination of BC3 fields and asset columns
    - Consider the relationships between different data elements when extracting entities
 
-4. **Response Structure**: Your response MUST include:
-   - "EXTRACTED ENTITIES:" section with numbered list
-   - For each entity: type, name, value, confidence, source, business significance
-   - Analysis of why these entities are relevant
-   - Suggestions for additional context
+4. **Response Structure**: Your response MUST be in JSON format with the following structure:
+   ```json
+   {{
+     "extracted_entities": [
+       {{
+         "entity_type": "FIELD|BUSINESS_METRIC|RELATIONSHIP|DERIVED_INSIGHT|OPERATIONAL_RULE",
+         "entity_name": "Entity Name",
+         "entity_value": "Entity Value or Description",
+         "confidence": 0.95,
+         "source_field": "BC3 Fields or Asset Columns used",
+         "description": "Business significance explanation",
+         "relationships": {{
+           "influences": "Related Entity",
+           "correlates_with": "Another Entity",
+           "depends_on": "Dependency Entity"
+         }}
+       }}
+     ],
+     "analysis": "Explain how these entities provide value and insights from the context",
+     "suggestions": [
+       "Additional BC3 fields that would be valuable",
+       "Additional asset columns that would enhance analysis"
+     ]
+   }}
+   ```
 
-5. **NEW Entity Examples** (DO NOT extract these exact examples - create your own based on context):
-   - **Derived Business Metrics**: "Credit Utilization Ratio" (debt/limit), "Risk Score" (credit_score + debt analysis)
-   - **Relationship Entities**: "Account-Credit Correlation" (how account type affects credit score)
-   - **Operational Insights**: "Account Health Status" (based on multiple factors), "Risk Category" (high/medium/low)
-   - **Business Rules**: "Credit Limit Recommendations" (based on score + debt), "Account Monitoring Triggers"
-   - **Predictive Entities**: "Default Risk Probability", "Credit Limit Increase Eligibility"
+5. **Entity Examples** (follow this exact JSON format):
+   - **Obvious Entities**: "Account Number", "Credit Limit", "Credit Score"
+   - **Derived Business Metrics**: "Credit Utilization Ratio", "Risk Score"
+   - **Relationship Entities**: "Account-Credit Correlation", "Risk Patterns"
+   - **Operational Insights**: "Account Health Status", "Risk Category"
 
 6. **Quality Requirements**:
-   - Minimum 2 entities per response
+   - Minimum 3 entities per response (mix of obvious and derived)
    - Confidence scores 0.7-1.0 for clear context
    - Business-focused explanations
-   - No generic responses like "Let me know if you have questions"
+   - Valid JSON format that can be parsed
 
-Remember: You are an entity extraction agent. Extract NEW entities based on the context provided. Do not give generic responses.
+Remember: You are an entity extraction agent. Extract entities from the context and create meaningful derived insights.
 
-⚠️ CRITICAL: DO NOT extract entities that are already in the context. Instead, create NEW entities that represent:
-- Business insights derived from the context
-- Relationships between different context elements
-- Operational rules and business logic
-- Predictive or analytical entities
+⚠️ CRITICAL: DO NOT ask for more context. Use what's provided to extract and create entities.
 
-FORMAT YOUR RESPONSE LIKE THIS:
-EXTRACTED ENTITIES:
-1. [NEW Entity Type]: [NEW Entity Name] - [Derived Value] (Confidence: X.X)
-   Source: [Combination of BC3 Fields and Asset Columns]
-   Business Significance: [Explanation of why this NEW entity is valuable]
+⚠️ CRITICAL: ALWAYS respond in valid JSON format as specified above.
 
-2. [NEW Entity Type]: [NEW Entity Name] - [Derived Value] (Confidence: X.X)
-   Source: [Combination of BC3 Fields and Asset Columns]
-   Business Significance: [Explanation of why this NEW entity is valuable]
-
-ANALYSIS: [Explain how these NEW entities provide value beyond the original context]
-
-The context is provided below - use it to create NEW insights.
+The context is provided below - use it to extract obvious entities and create derived insights.
 
 CONTEXT FORMAT:
 - If you see "Selected BC3 Fields:" followed by field details, that IS your context
@@ -304,9 +343,9 @@ CONTEXT FORMAT:
             # Log what's being sent to the LLM
             logger.info(f"📤 Messages being sent to LLM: {[msg.content if hasattr(msg, 'content') else str(msg) for msg in messages]}")
             
-            # Generate response with retry logic
-            chain = prompt | self.llm
-            logger.info("🔄 Invoking LLM chain...")
+            # Generate response with tools and retry logic
+            chain = prompt | self.llm.bind_tools(self.tools)
+            logger.info("🔄 Invoking LLM chain with tools...")
             
             max_retries = 3
             for attempt in range(max_retries):
@@ -513,51 +552,56 @@ class CreditDomainEntityExtractionAgent:
             logger.info("🔍 Parsing LLM response for entities...")
             entities = []
             
-            # Look for the EXTRACTED ENTITIES section
-            if "EXTRACTED ENTITIES:" in response_text:
-                # Split by entity numbers (1., 2., 3., etc.)
-                entity_sections = response_text.split("EXTRACTED ENTITIES:")[1].split("ANALYSIS:")[0]
+            # Try to parse as JSON first
+            try:
+                import json
+                # Clean the response text - remove markdown code blocks if present
+                cleaned_response = response_text.strip()
+                if cleaned_response.startswith("```json"):
+                    cleaned_response = cleaned_response[7:]  # Remove ```json
+                if cleaned_response.endswith("```"):
+                    cleaned_response = cleaned_response[:-3]  # Remove ```
+                cleaned_response = cleaned_response.strip()
                 
-                # Find numbered entities (1., 2., 3., etc.)
-                import re
-                entity_matches = re.findall(r'(\d+)\.\s*([^:]+):\s*([^-]+)\s*-\s*([^(]+)', entity_sections)
+                response_data = json.loads(cleaned_response)
+                logger.info("✅ Successfully parsed JSON response")
                 
-                for match in entity_matches:
-                    try:
-                        entity_num, entity_type, entity_name, entity_value = match
-                        
-                        # Extract confidence score if present
-                        confidence_match = re.search(r'Confidence:\s*([\d.]+)', entity_sections)
-                        confidence = float(confidence_match.group(1)) if confidence_match else 0.8
-                        
-                        # Extract source if present
-                        source_match = re.search(r'Source:\s*([^\n]+)', entity_sections)
-                        source = source_match.group(1).strip() if source_match else "Unknown"
-                        
-                        # Extract business significance if present
-                        significance_match = re.search(r'Business Significance:\s*([^\n]+)', entity_sections)
-                        significance = significance_match.group(1).strip() if significance_match else "Not specified"
-                        
-                        entity = {
-                            "entity_type": self._map_entity_type(entity_type.strip()),
-                            "entity_name": entity_name.strip(),
-                            "entity_value": entity_value.strip(),
-                            "confidence": confidence,
-                            "source_field": source,
-                            "description": significance,
-                            "context_provider": "credit_domain"
-                        }
-                        
-                        entities.append(entity)
-                        logger.info(f"✅ Parsed entity: {entity_name.strip()} ({entity_type.strip()})")
-                        
-                    except Exception as e:
-                        logger.error(f"❌ Error parsing individual entity: {e}")
-                        continue
-                
-                logger.info(f"✅ Successfully parsed {len(entities)} entities from LLM response")
-            else:
-                logger.warning("⚠️ No EXTRACTED ENTITIES section found in LLM response")
+                # Extract entities from JSON structure
+                if "extracted_entities" in response_data:
+                    for entity_data in response_data["extracted_entities"]:
+                        try:
+                            # Map entity type from string to EntityType enum
+                            entity_type_str = entity_data.get("entity_type", "METADATA")
+                            mapped_entity_type = self._map_entity_type(entity_type_str)
+                            
+                            # Create entity object
+                            entity = {
+                                "entity_type": mapped_entity_type,
+                                "entity_name": entity_data.get("entity_name", "Unknown"),
+                                "entity_value": entity_data.get("entity_value", ""),
+                                "confidence": float(entity_data.get("confidence", 0.8)),
+                                "source_field": entity_data.get("source_field", "Unknown"),
+                                "description": entity_data.get("description", ""),
+                                "relationships": entity_data.get("relationships", {}),
+                                "context_provider": "credit_domain"
+                            }
+                            
+                            entities.append(entity)
+                            logger.info(f"✅ Parsed JSON entity: {entity['entity_name']} ({entity_type_str}) with {len(entity['relationships'])} relationships")
+                            
+                        except Exception as e:
+                            logger.error(f"❌ Error parsing individual JSON entity: {e}")
+                            continue
+                    
+                    logger.info(f"✅ Successfully parsed {len(entities)} entities from JSON response")
+                    return entities
+                    
+                else:
+                    logger.warning("⚠️ No 'extracted_entities' found in JSON response")
+                    
+            except json.JSONDecodeError as e:
+                logger.info(f"⚠️ Response is not valid JSON: {e}")
+                logger.info("🔄 Falling back to text parsing...")
                 
                 # Fallback: Extract basic entities from context if LLM fails
                 if "error" in response_text.lower() or "empty response" in response_text.lower():
@@ -611,6 +655,14 @@ class CreditDomainEntityExtractionAgent:
             return EntityType.VALUE
         elif "implementation" in entity_type_lower:
             return EntityType.METADATA
+        elif "business" in entity_type_lower and "metric" in entity_type_lower:
+            return EntityType.BUSINESS_METRIC
+        elif "relationship" in entity_type_lower:
+            return EntityType.RELATIONSHIP
+        elif "derived" in entity_type_lower and "insight" in entity_type_lower:
+            return EntityType.DERIVED_INSIGHT
+        elif "operational" in entity_type_lower and "rule" in entity_type_lower:
+            return EntityType.OPERATIONAL_RULE
         else:
             return EntityType.METADATA
     

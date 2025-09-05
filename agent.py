@@ -19,10 +19,12 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from models import (
     CreditDomainSegment, BusinessDictionaryField, DataAsset, DataAssetColumn,
-    ExtractedEntity, EntityType, ChatMessage, AgentRequest, AgentResponse, 
+    ExtractedEntity, EntityAttribute, EntityType, ChatMessage, AgentRequest, AgentResponse, 
     ChatState, GenericDocument, GenericDataField
 )
 from session_managers import SessionManager, InMemorySessionManager
+from config import create_session_manager_from_config, SessionConfig
+from entity_manager import EntityManager
 
 
 class AgentState(TypedDict):
@@ -34,6 +36,8 @@ class AgentState(TypedDict):
     selected_bc3_fields: Annotated[List[Dict], "Selected BC3 fields with context"]
     selected_asset_columns: Annotated[List[Dict], "Selected asset columns with context"]
     extracted_entities: Annotated[List[Dict], "Extracted entities"]
+    user_intent: Annotated[str, "Detected user intent (extract|update_entity|update_attribute|delete_entity|delete_attribute|read)"]
+    action_required: Annotated[str, "Specific action to perform based on intent"]
     metadata: Annotated[Dict[str, Any], "Additional metadata"]
 
 
@@ -209,133 +213,288 @@ class LLMManager:
         )
     
     def _initialize_tools(self) -> List:
-        """Initialize extraction tools"""
-        from langchain_core.tools import tool
+        """Initialize extraction and CRUD tools"""
+        from tools import create_all_tools
         
-        @tool
-        def extract_credit_domain_entities(segment_data: str) -> str:
-            """Extract entities from Credit Domain segment data. Input should be JSON string of segment data."""
-            try:
-                import json
-                segment_dict = json.loads(segment_data)
-                entities = EntityExtractor.extract_credit_domain_entities(segment_dict)
-                return json.dumps(entities, indent=2)
-            except Exception as e:
-                return f"Error extracting credit domain entities: {str(e)}"
+        # Create tools with entity extractor and entity manager
+        entity_extractor = EntityExtractor()
+        entity_manager = getattr(self, 'entity_manager', None)
         
-        @tool
-        def extract_data_asset_entities(asset_data: str) -> str:
-            """Extract entities from data asset information. Input should be JSON string of asset data."""
-            try:
-                import json
-                asset_dict = json.loads(asset_data)
-                entities = EntityExtractor.extract_data_asset_entities(asset_dict)
-                return json.dumps(entities, indent=2)
-            except Exception as e:
-                return f"Error extracting data asset entities: {str(e)}"
-        
-        return [extract_credit_domain_entities, extract_data_asset_entities]
+        return create_all_tools(entity_extractor, entity_manager)
     
-    def get_system_prompt(self) -> str:
-        """Get the system prompt for the Credit Domain agent"""
-        return """You are a specialized AI agent designed to help users create and extract custom entities from Credit Domain (BC3) data and data assets.
+    def get_system_prompt(self, intent: str = "extract") -> str:
+        """Get system prompt based on user intent"""
+        base_prompt = """You are a specialized AI agent designed to help users manage entities from Credit Domain (BC3) data and data assets.
 
-IMPORTANT: You can extract both obvious entities from the context AND create meaningful derived entities by fusing the context.
+AVAILABLE TOOLS:
+- extract_credit_domain_entities: Extract structured entities from BC3 segment data
+- extract_data_asset_entities: Extract structured entities from data asset information  
+- read_entities: Read entities from a session with optional filtering
+- delete_entities: Delete entities or attributes from a session
+- update_entities: Update entities or their attributes
+
+CRITICAL: For read, update, and delete operations, you MUST use the appropriate tools. Do not provide responses without using tools.
+
+INTENT-BASED RESPONSES:"""
+
+        if intent == "extract":
+            return base_prompt + """
+**INTENT: EXTRACT ENTITIES**
+Your goal is to extract entities from the provided context and create meaningful derived insights.
 
 CRITICAL: The context is ALREADY provided below. Do not ask for more context.
 
-⚠️ WARNING: If you see "Selected BC3 Fields:" and "Selected Asset Columns:" below, the context IS ALREADY PROVIDED. Do not say "Once you provide the context" or similar phrases.
+**Response Structure**: Your response MUST be in JSON format:
+```json
+{{
+  "extracted_entities": [
+    {{
+      "entity_type": "FIELD|BUSINESS_METRIC|RELATIONSHIP|DERIVED_INSIGHT|OPERATIONAL_RULE",
+      "entity_name": "Entity Name",
+      "entity_value": "Entity Value or Description",
+      "confidence": 0.95,
+      "source_field": "BC3 Fields or Asset Columns used",
+      "description": "Business significance explanation",
+      "relationships": {{
+        "influences": "Related Entity",
+        "correlates_with": "Another Entity", 
+        "depends_on": "Dependency Entity"
+      }},
+      "attributes": [
+        {{
+          "attribute_name": "Attribute Name",
+          "attribute_value": "Attribute Value",
+          "attribute_type": "string|number|boolean|object",
+          "confidence": 0.9,
+          "source_field": "Source field for this attribute",
+          "description": "Attribute description"
+        }}
+      ]
+    }}
+  ],
+  "analysis": "Explain how these entities provide value and insights",
+  "suggestions": [
+    "Additional BC3 fields that would be valuable",
+    "Additional asset columns that would enhance analysis"
+  ]
+}}
+```
 
-AVAILABLE TOOLS:
-- extract_credit_domain_entities: Use this tool to extract structured entities from BC3 segment data
-- extract_data_asset_entities: Use this tool to extract structured entities from data asset information
+**Entity Examples**:
+- **Obvious Entities**: "Account Number", "Credit Limit", "Credit Score"
+- **Derived Business Metrics**: "Credit Utilization Ratio", "Risk Score"  
+- **Relationship Entities**: "Account-Credit Correlation", "Risk Patterns"
+- **Operational Insights**: "Account Health Status", "Risk Category"
 
-Your primary responsibilities:
-
-1. **Entity Extraction Strategy**: 
-   - First, extract obvious entities from the selected BC3 fields and asset columns
-   - Then, fuse the context to create meaningful derived entities and relationships
-   - Focus on BUSINESS INSIGHTS, RELATIONSHIPS, and OPERATIONAL VALUE
-
-2. **Context Analysis**: 
-   - Analyze the selected BC3 fields and asset columns provided by the user
-   - Use tools to extract structured entities when needed
-   - Understand the relationships between different data elements
-   - Identify business-relevant entities based on the selected context
-
-3. **Intelligent Entity Extraction**:
-   - Use the available tools to extract structured entities from the context
-   - Based on the user's message and selected context, determine what entities are relevant
-   - Extract entities that make business sense given the combination of BC3 fields and asset columns
-   - Consider the relationships between different data elements when extracting entities
-
-4. **Response Structure**: Your response MUST be in JSON format with the following structure:
-   ```json
-   {{
-     "extracted_entities": [
-       {{
-         "entity_type": "FIELD|BUSINESS_METRIC|RELATIONSHIP|DERIVED_INSIGHT|OPERATIONAL_RULE",
-         "entity_name": "Entity Name",
-         "entity_value": "Entity Value or Description",
-         "confidence": 0.95,
-         "source_field": "BC3 Fields or Asset Columns used",
-         "description": "Business significance explanation",
-         "relationships": {{
-           "influences": "Related Entity",
-           "correlates_with": "Another Entity",
-           "depends_on": "Dependency Entity"
-         }}
-       }}
-     ],
-     "analysis": "Explain how these entities provide value and insights from the context",
-     "suggestions": [
-       "Additional BC3 fields that would be valuable",
-       "Additional asset columns that would enhance analysis"
-     ]
-   }}
-   ```
-
-5. **Entity Examples** (follow this exact JSON format):
-   - **Obvious Entities**: "Account Number", "Credit Limit", "Credit Score"
-   - **Derived Business Metrics**: "Credit Utilization Ratio", "Risk Score"
-   - **Relationship Entities**: "Account-Credit Correlation", "Risk Patterns"
-   - **Operational Insights**: "Account Health Status", "Risk Category"
-
-6. **Quality Requirements**:
-   - Minimum 3 entities per response (mix of obvious and derived)
+**Quality Requirements**:
+- Minimum 3 entities per response (mix of obvious and derived)
    - Confidence scores 0.7-1.0 for clear context
    - Business-focused explanations
-   - Valid JSON format that can be parsed
-
-Remember: You are an entity extraction agent. Extract entities from the context and create meaningful derived insights.
+- Valid JSON format that can be parsed
 
 ⚠️ CRITICAL: DO NOT ask for more context. Use what's provided to extract and create entities.
+⚠️ CRITICAL: ALWAYS respond in valid JSON format as specified above."""
 
-⚠️ CRITICAL: ALWAYS respond in valid JSON format as specified above.
+        elif intent == "update_entity":
+            return base_prompt + """
+**INTENT: UPDATE ENTITY**
+Your goal is to update an existing entity with new information.
 
-The context is provided below - use it to extract obvious entities and create derived insights.
+**CRITICAL: You MUST use the update_entities tool to modify entities in the session.**
 
-CONTEXT FORMAT:
-- If you see "Selected BC3 Fields:" followed by field details, that IS your context
-- If you see "Selected Asset Columns:" followed by column details, that IS your context
-- Extract entities from these fields and columns immediately
-- Do not ask for more context - it's already there!"""
+**Tool Usage Instructions:**
+1. First, identify the entity_id from the user's request or use read_entities to find it
+2. Call the update_entities tool with the session_id and entity_id
+3. Provide entity_updates and/or attribute_updates as JSON strings
+4. Confirm the update was successful
+
+**Response Structure**: After using the tool, provide a summary in JSON format:
+```json
+{{
+  "action": "update_entity",
+  "tool_used": "update_entities",
+  "entity_id": "entity_id_updated",
+  "session_id": "session_id_from_context",
+  "message": "Entity updated successfully with new information"
+}}
+```
+
+**Example Tool Call:**
+- update_entities(session_id="session_123", entity_id="entity_456", entity_updates='{"confidence": 0.95}')
+
+**IMPORTANT: Always call the update_entities tool first, then provide the summary.**"""
+
+        elif intent == "update_attribute":
+            return base_prompt + """
+**INTENT: UPDATE ATTRIBUTE**
+Your goal is to update specific attributes of an existing entity.
+
+**CRITICAL: You MUST use the update_entities tool to modify entity attributes.**
+
+**Tool Usage Instructions:**
+1. First, identify the entity_id from the user's request or use read_entities to find it
+2. Call the update_entities tool with the session_id, entity_id, and attribute_updates
+3. Provide attribute_updates as a JSON string with the new attribute values
+4. Confirm the attribute update was successful
+
+**Response Structure**: After using the tool, provide a summary in JSON format:
+```json
+{{
+  "action": "update_attribute",
+  "tool_used": "update_entities",
+  "entity_id": "entity_id_updated",
+  "session_id": "session_id_from_context",
+  "message": "Attributes updated successfully"
+}}
+```
+
+**Example Tool Call:**
+- update_entities(session_id="session_123", entity_id="entity_456", attribute_updates='[{"attribute_name": "risk_score", "attribute_value": 750, "attribute_type": "number"}]')
+
+**IMPORTANT: Always call the update_entities tool first, then provide the summary.**"""
+
+        elif intent == "delete_entity":
+            return base_prompt + """
+**INTENT: DELETE ENTITY**
+Your goal is to delete an entity or specific attributes.
+
+**CRITICAL: You MUST use the delete_entities tool to remove entities or attributes.**
+
+**Tool Usage Instructions:**
+1. First, identify the entity_id from the user's request or use read_entities to find it
+2. Call the delete_entities tool with the session_id and appropriate parameters
+3. Use entity_id to delete entire entity, or entity_id + attribute_ids to delete specific attributes
+4. Confirm the deletion was successful
+
+**Response Structure**: After using the tool, provide a summary in JSON format:
+```json
+{{
+  "action": "delete_entity",
+  "tool_used": "delete_entities",
+  "entity_id": "entity_id_deleted",
+  "session_id": "session_id_from_context",
+  "message": "Entity/attributes deleted successfully"
+}}
+```
+
+**Example Tool Call:**
+- Delete entire entity: delete_entities(session_id="session_123", entity_id="entity_456")
+- Delete specific attributes: delete_entities(session_id="session_123", entity_id="entity_456", attribute_ids="attr_1,attr_2")
+
+**IMPORTANT: Always call the delete_entities tool first, then provide the summary.**"""
+
+        elif intent == "delete_attribute":
+            return base_prompt + """
+**INTENT: DELETE ATTRIBUTE**
+Your goal is to delete specific attributes from an entity.
+
+**CRITICAL: You MUST use the delete_entities tool to remove specific attributes.**
+
+**Tool Usage Instructions:**
+1. First, identify the entity_id and attribute_ids from the user's request or use read_entities to find them
+2. Call the delete_entities tool with the session_id, entity_id, and attribute_ids
+3. Provide attribute_ids as a comma-separated string
+4. Confirm the attribute deletion was successful
+
+**Response Structure**: After using the tool, provide a summary in JSON format:
+```json
+{{
+  "action": "delete_attribute",
+  "tool_used": "delete_entities",
+  "entity_id": "entity_id",
+  "attribute_ids": ["attr_id1", "attr_id2"],
+  "session_id": "session_id_from_context",
+  "message": "Attributes deleted successfully"
+}}
+```
+
+**Example Tool Call:**
+- delete_entities(session_id="session_123", entity_id="entity_456", attribute_ids="attr_1,attr_2")
+
+**IMPORTANT: Always call the delete_entities tool first, then provide the summary.**"""
+
+        elif intent == "read":
+            return base_prompt + """
+**INTENT: READ ENTITIES**
+Your goal is to read and display existing entities from the session.
+
+**IMPORTANT: The entities have already been retrieved for you. Use the tool_result in the context to display them.**
+
+**Response Structure**: Provide a user-friendly summary of the retrieved entities:
+```json
+{{
+  "action": "read_entities",
+  "tool_used": "read_entities",
+  "session_id": "session_id_from_context",
+  "entities_found": "number_of_entities",
+  "message": "Entities retrieved and displayed successfully"
+}}
+```
+
+**Instructions:**
+1. Parse the tool_result from the context (it contains the entities data)
+2. Display the entities in a clear, organized format
+3. Show entity names, types, descriptions, and attributes
+4. Provide a summary of how many entities were found
+
+**IMPORTANT: The entities are already retrieved - just format and display them nicely.**"""
+
+        else:
+            return base_prompt + """
+**INTENT: GENERAL ASSISTANCE**
+Your goal is to help the user with entity management tasks.
+
+Analyze the user's request and determine the appropriate action:
+- If they want to extract entities from context → use "extract" intent
+- If they want to update an entity → use "update_entity" intent  
+- If they want to update attributes → use "update_attribute" intent
+- If they want to delete an entity → use "delete_entity" intent
+- If they want to delete attributes → use "delete_attribute" intent
+- If they want to read entities → use "read" intent
+
+Provide helpful guidance based on their request."""
     
-    def generate_response(self, messages: List[Any], context: str) -> AIMessage:
+    def detect_intent(self, message: str) -> str:
+        """Detect user intent from the message"""
+        message_lower = message.lower()
+        
+        # Intent detection patterns
+        if any(word in message_lower for word in ['extract', 'create', 'identify', 'find', 'analyze', 'discover']):
+            return "extract"
+        elif any(word in message_lower for word in ['update', 'modify', 'change', 'edit', 'revise']):
+            if any(word in message_lower for word in ['attribute', 'property', 'field']):
+                return "update_attribute"
+            else:
+                return "update_entity"
+        elif any(word in message_lower for word in ['delete', 'remove', 'clear', 'drop']):
+            if any(word in message_lower for word in ['attribute', 'property', 'field']):
+                return "delete_attribute"
+            else:
+                return "delete_entity"
+        elif any(word in message_lower for word in ['read', 'show', 'display', 'list', 'get', 'retrieve', 'view']):
+            return "read"
+        else:
+            return "extract"  # Default to extract for general requests
+    
+    def generate_response(self, messages: List[Any], context: str, intent: str = "extract", session_id: str = None) -> AIMessage:
         """Generate response using the LLM"""
         try:
             # Create prompt template
-            system_prompt = self.get_system_prompt()
+            system_prompt = self.get_system_prompt(intent)
             logger.info(f"🤖 System prompt length: {len(system_prompt)} characters")
             logger.info(f"🤖 System prompt preview: {system_prompt[:200]}...")
             
+            # Add session context for tool usage
+            session_context = f"\n\nSESSION CONTEXT:\n- Session ID: {session_id or 'unknown'}\n- Available tools: read_entities, update_entities, delete_entities, extract_credit_domain_entities, extract_data_asset_entities\n- Use these tools to interact with the session data\n\n"
+            enhanced_context = context + session_context
+            
             # Log the full context being sent
-            logger.info(f"📋 Full context being sent to LLM: {context}")
+            logger.info(f"📋 Full context being sent to LLM: {enhanced_context}")
             
             prompt = ChatPromptTemplate.from_messages([
                 ("system", system_prompt),
                 MessagesPlaceholder(variable_name="messages"),
-                ("system", f"Current Context:\n{context}")
+                ("system", f"Current Context:\n{enhanced_context}")
             ])
             
             logger.info(f"📝 Full prompt template created with {len(prompt.messages)} message types")
@@ -344,8 +503,17 @@ CONTEXT FORMAT:
             logger.info(f"📤 Messages being sent to LLM: {[msg.content if hasattr(msg, 'content') else str(msg) for msg in messages]}")
             
             # Generate response with tools and retry logic
-            chain = prompt | self.llm.bind_tools(self.tools)
-            logger.info("🔄 Invoking LLM chain with tools...")
+            # Try with tools first, fallback to no tools if empty response
+            try:
+                logger.info(f"🔧 Binding {len(self.tools)} tools to LLM...")
+                for i, tool in enumerate(self.tools):
+                    logger.info(f"  Tool {i+1}: {tool.name}")
+                chain = prompt | self.llm.bind_tools(self.tools)
+                logger.info("🔄 Invoking LLM chain with tools...")
+            except Exception as e:
+                logger.warning(f"⚠️ Tool binding failed: {e}, falling back to no tools")
+                chain = prompt | self.llm
+                logger.info("🔄 Invoking LLM chain without tools (fallback)...")
             
             max_retries = 3
             for attempt in range(max_retries):
@@ -358,6 +526,10 @@ CONTEXT FORMAT:
                     if not response or not response.content:
                         logger.warning(f"⚠️ LLM returned empty response on attempt {attempt + 1}")
                         if attempt < max_retries - 1:
+                            # Try switching to no tools on second attempt
+                            if attempt == 1 and hasattr(self, 'tools'):
+                                logger.info("🔄 Switching to no tools for retry...")
+                                chain = prompt | self.llm
                             logger.info("🔄 Retrying...")
                             continue
                         else:
@@ -365,6 +537,15 @@ CONTEXT FORMAT:
                             return AIMessage(content="I encountered an error: The LLM returned an empty response after multiple attempts. Please try again.")
                     
                     logger.info(f"✅ LLM response received: {len(response.content)} characters")
+                    
+                    # Check if the response contains tool calls
+                    if hasattr(response, 'tool_calls') and response.tool_calls:
+                        logger.info(f"🔧 LLM made {len(response.tool_calls)} tool calls:")
+                        for i, tool_call in enumerate(response.tool_calls):
+                            logger.info(f"  Tool call {i+1}: {tool_call['name']} with args: {tool_call.get('args', {})}")
+                    else:
+                        logger.info("⚠️ LLM did not make any tool calls")
+                    
                     return response
                     
                 except Exception as e:
@@ -393,7 +574,27 @@ class CreditDomainEntityExtractionAgent:
         # Initialize components
         self.llm_manager = LLMManager(project_id, location)
         self.entity_extractor = EntityExtractor()
-        self.session_manager = session_manager or InMemorySessionManager()
+        
+        # Initialize session manager - use Firestore by default
+        if session_manager is not None:
+            self.session_manager = session_manager
+        else:
+            # Create Firestore session manager by default
+            session_config = SessionConfig(
+                manager_type="firestore",
+                firestore_project_id=project_id
+            )
+            self.session_manager = create_session_manager_from_config(session_config)
+            print(f"🗄️ Session manager initialized: {type(self.session_manager).__name__}")
+        
+        # Initialize entity manager
+        self.entity_manager = EntityManager(self.session_manager)
+        
+        # Set entity manager in LLM manager for tools
+        self.llm_manager.entity_manager = self.entity_manager
+        
+        # Re-initialize tools with the entity manager
+        self.llm_manager.tools = self.llm_manager._initialize_tools()
         
         print("🤖 LLM initialized successfully")
         print("🔧 Starting graph construction...")
@@ -408,18 +609,142 @@ class CreditDomainEntityExtractionAgent:
         
         # Add nodes
         workflow.add_node("analyze_request", self._analyze_request)
+        workflow.add_node("detect_intent", self._detect_intent)
+        workflow.add_node("route_action", self._route_action)
         workflow.add_node("extract_entities", self._extract_entities)
+        workflow.add_node("update_entities", self._update_entities)
+        workflow.add_node("delete_entities", self._delete_entities)
+        workflow.add_node("read_entities", self._read_entities)
         workflow.add_node("generate_response", self._generate_response)
         
         # Add edges
-        workflow.add_edge("analyze_request", "extract_entities")
+        workflow.add_edge("analyze_request", "detect_intent")
+        workflow.add_edge("detect_intent", "route_action")
+        
+        # Conditional routing based on intent
+        workflow.add_conditional_edges(
+            "route_action",
+            self._route_condition,
+            {
+                "extract": "extract_entities",
+                "update_entity": "update_entities", 
+                "update_attribute": "update_entities",
+                "delete_entity": "delete_entities",
+                "delete_attribute": "delete_entities",
+                "read": "read_entities"
+            }
+        )
+        
         workflow.add_edge("extract_entities", "generate_response")
+        workflow.add_edge("update_entities", "generate_response")
+        workflow.add_edge("delete_entities", "generate_response")
+        workflow.add_edge("read_entities", "generate_response")
         workflow.add_edge("generate_response", END)
         
         # Set entry point
         workflow.set_entry_point("analyze_request")
         
         return workflow.compile()
+    
+    def _detect_intent(self, state: AgentState) -> AgentState:
+        """Detect user intent from the message"""
+        logger.info("🔍 INTENT DETECTION: Starting intent detection...")
+        messages = state["messages"]
+        
+        # Find the last HumanMessage (user message)
+        last_user_message = None
+        for message in reversed(messages):
+            if isinstance(message, HumanMessage):
+                last_user_message = message
+                break
+        
+        logger.info(f"🔍 INTENT DETECTION: Messages count: {len(messages)}")
+        logger.info(f"🔍 INTENT DETECTION: Last user message type: {type(last_user_message)}")
+        
+        if not last_user_message:
+            logger.info("🔍 INTENT DETECTION: No valid user message, defaulting to extract")
+            state["user_intent"] = "extract"
+            state["action_required"] = "extract"
+            return state
+        
+        logger.info(f"🔍 INTENT DETECTION: Message content: {last_user_message.content}")
+        
+        # Detect intent from the message
+        intent = self.llm_manager.detect_intent(last_user_message.content)
+        state["user_intent"] = intent
+        state["action_required"] = intent
+        
+        logger.info(f"🎯 Detected user intent: {intent}")
+        return state
+    
+    def _route_action(self, state: AgentState) -> AgentState:
+        """Route to appropriate action based on intent"""
+        intent = state.get("user_intent", "extract")
+        action = state.get("action_required", "extract")
+        
+        logger.info(f"🔄 Routing to action: {action}")
+        
+        # The routing is handled by the graph edges
+        # This method just logs the routing decision
+        return state
+    
+    def _route_condition(self, state: AgentState) -> str:
+        """Determine which node to route to based on intent"""
+        intent = state.get("user_intent", "extract")
+        logger.info(f"🎯 Routing condition: {intent}")
+        return intent
+    
+    def _update_entities(self, state: AgentState) -> AgentState:
+        """Handle entity update operations"""
+        logger.info("✏️ Processing entity update request")
+        
+        # For now, just pass through to generate_response
+        # In a full implementation, this would call the update_entities tool
+        return state
+    
+    def _delete_entities(self, state: AgentState) -> AgentState:
+        """Handle entity deletion operations"""
+        logger.info("🗑️ Processing entity deletion request")
+        
+        # For now, just pass through to generate_response
+        # In a full implementation, this would call the delete_entities tool
+        return state
+    
+    def _read_entities(self, state: AgentState) -> AgentState:
+        """Handle entity read operations"""
+        logger.info("📖 Processing entity read request")
+        
+        try:
+            # Call the read_entities tool directly
+            session_id = state.get("session_id", "unknown")
+            logger.info(f"📖 Reading entities for session: {session_id}")
+            
+            # Find the read_entities tool
+            read_tool = None
+            for tool in self.llm_manager.tools:
+                if tool.name == "read_entities":
+                    read_tool = tool
+                    break
+            
+            if read_tool:
+                logger.info("🔧 Calling read_entities tool directly...")
+                result = read_tool.invoke({"session_id": session_id})
+                logger.info(f"📖 Tool result: {result[:200]}...")
+                
+                # Add the tool result to the state for the LLM to use
+                state["tool_result"] = result
+                state["tool_used"] = "read_entities"
+            else:
+                logger.error("❌ read_entities tool not found")
+                state["tool_result"] = "Error: read_entities tool not available"
+                state["tool_used"] = "none"
+                
+        except Exception as e:
+            logger.error(f"❌ Error in _read_entities: {e}")
+            state["tool_result"] = f"Error reading entities: {str(e)}"
+            state["tool_used"] = "error"
+        
+        return state
     
     def _analyze_request(self, state: AgentState) -> AgentState:
         """Analyze the user request and determine next steps"""
@@ -485,9 +810,11 @@ class CreditDomainEntityExtractionAgent:
             logger.info(f"📋 Prepared context length: {len(context)} characters")
             logger.info(f"📋 Context preview: {context[:200]}...")
             
-            # Generate response using LLM manager
-            logger.info("🔄 Calling LLM with context...")
-            response = self.llm_manager.generate_response(state["messages"], context)
+            # Generate response using LLM manager with intent
+            intent = state.get("user_intent", "extract")
+            session_id = state.get("session_id", "unknown")
+            logger.info(f"🔄 Calling LLM with context and intent: {intent}")
+            response = self.llm_manager.generate_response(state["messages"], context, intent, session_id)
             logger.info(f"🤖 LLM response received: {len(response.content)} characters")
             logger.info(f"🤖 Response preview: {response.content[:200]}...")
             
@@ -542,6 +869,10 @@ class CreditDomainEntityExtractionAgent:
         if state.get("extracted_entities"):
             context_parts.append(f"Previously Extracted Entities: {len(state['extracted_entities'])}")
         
+        # Add tool result if available
+        if state.get("tool_result"):
+            context_parts.append(f"Tool Result: {state['tool_result']}")
+        
         final_context = "\n".join(context_parts) if context_parts else "No context available"
         logger.info(f"📋 Final context prepared: {len(final_context)} characters")
         return final_context
@@ -574,25 +905,43 @@ class CreditDomainEntityExtractionAgent:
                             entity_type_str = entity_data.get("entity_type", "METADATA")
                             mapped_entity_type = self._map_entity_type(entity_type_str)
                             
-                            # Create entity object
+                            # Create entity object with new structure
                             entity = {
+                                "entity_id": f"entity_{uuid.uuid4().hex[:8]}",
                                 "entity_type": mapped_entity_type,
-                                "entity_name": entity_data.get("entity_name", "Unknown"),
-                                "entity_value": entity_data.get("entity_value", ""),
-                                "confidence": float(entity_data.get("confidence", 0.8)),
-                                "source_field": entity_data.get("source_field", "Unknown"),
-                                "description": entity_data.get("description", ""),
+                                "entity_name": entity_data.get("entity_name") or "Unknown",
+                                "entity_value": entity_data.get("entity_value") or "",
+                                "confidence": float(entity_data.get("confidence") or 0.8),
+                                "source_field": entity_data.get("source_field") or "Unknown",
+                                "description": entity_data.get("description") or "",
                                 "relationships": entity_data.get("relationships", {}),
-                                "context_provider": "credit_domain"
+                                "context_provider": "credit_domain",
+                                "attributes": [],  # Will be populated with attributes if provided
+                                "state_version": 1
                             }
+                            
+                            # Add attributes if provided in the entity data
+                            if "attributes" in entity_data and entity_data["attributes"]:
+                                for attr_data in entity_data["attributes"]:
+                                    attribute = {
+                                        "attribute_id": f"attr_{uuid.uuid4().hex[:8]}",
+                                        "attribute_name": attr_data.get("attribute_name", ""),
+                                        "attribute_value": attr_data.get("attribute_value", ""),
+                                        "attribute_type": attr_data.get("attribute_type", "string"),
+                                        "confidence": float(attr_data.get("confidence", 0.8)),
+                                        "source_field": attr_data.get("source_field", ""),
+                                        "description": attr_data.get("description", ""),
+                                        "metadata": attr_data.get("metadata", {})
+                                    }
+                                    entity["attributes"].append(attribute)
                             
                             entities.append(entity)
                             logger.info(f"✅ Parsed JSON entity: {entity['entity_name']} ({entity_type_str}) with {len(entity['relationships'])} relationships")
-                            
+                        
                         except Exception as e:
                             logger.error(f"❌ Error parsing individual JSON entity: {e}")
                             continue
-                    
+                
                     logger.info(f"✅ Successfully parsed {len(entities)} entities from JSON response")
                     return entities
                     
@@ -764,6 +1113,8 @@ class CreditDomainEntityExtractionAgent:
                 selected_bc3_fields=selected_bc3_fields,
                 selected_asset_columns=selected_asset_columns,
                 extracted_entities=[],
+                user_intent="extract",
+                action_required="extract",
                 metadata=request.metadata
             )
             

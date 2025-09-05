@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, Depends, Response
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -13,10 +14,13 @@ import uvicorn
 from agent import CreditDomainEntityExtractionAgent
 from models import (
     AgentRequest, AgentResponse, HealthResponse, 
-    CreditDomainSegment, DataAsset, ChatState
+    CreditDomainSegment, DataAsset, ChatState,
+    ReadEntityRequest, ReadEntityResponse, DeleteEntityRequest, DeleteEntityResponse,
+    UpdateEntityRequest, UpdateEntityResponse
 )
 from config import load_config_from_env, get_session_manager_kwargs
 from session_managers import create_session_manager
+from entity_manager import EntityManager
 
 # Configure enhanced logging
 logging.basicConfig(
@@ -113,6 +117,102 @@ async def health_check():
         timestamp=datetime.now(),
         version="2.0.0"
     )
+
+
+# CRUD Endpoints for Entity Management
+@app.post("/entities/read", response_model=ReadEntityResponse)
+async def read_entities(
+    request: ReadEntityRequest,
+    agent: CreditDomainEntityExtractionAgent = Depends(get_agent)
+):
+    """
+    Read entities from a session with optional filtering.
+    
+    **Features:**
+    - Read all entities or filter by entity ID, type, or state version
+    - Include or exclude entity attributes
+    - Get latest state version by default
+    
+    **Use Cases:**
+    - Retrieve all entities from a session
+    - Get specific entity by ID
+    - Filter entities by type (e.g., only FIELD entities)
+    - Read entities from a specific state version
+    """
+    try:
+        logger.info(f"📖 Reading entities for session: {request.session_id}")
+        entity_manager = EntityManager(agent.session_manager)
+        return entity_manager.read_entities(request)
+    except Exception as e:
+        logger.error(f"❌ Error in read_entities endpoint: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to read entities: {str(e)}"
+        )
+
+
+@app.post("/entities/delete", response_model=DeleteEntityResponse)
+async def delete_entities(
+    request: DeleteEntityRequest,
+    agent: CreditDomainEntityExtractionAgent = Depends(get_agent)
+):
+    """
+    Delete entities or attributes from a session.
+    
+    **Features:**
+    - Delete specific entity by ID
+    - Delete specific attributes by ID (keeping entity intact)
+    - Delete all entities in a session
+    - Automatic state version increment
+    
+    **Use Cases:**
+    - Remove incorrect entities
+    - Clean up outdated attributes
+    - Reset session by deleting all entities
+    - Remove specific attributes while keeping entity
+    """
+    try:
+        logger.info(f"🗑️ Deleting entities/attributes for session: {request.session_id}")
+        entity_manager = EntityManager(agent.session_manager)
+        return entity_manager.delete_entities(request)
+    except Exception as e:
+        logger.error(f"❌ Error in delete_entities endpoint: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete entities: {str(e)}"
+        )
+
+
+@app.post("/entities/update", response_model=UpdateEntityResponse)
+async def update_entities(
+    request: UpdateEntityRequest,
+    agent: CreditDomainEntityExtractionAgent = Depends(get_agent)
+):
+    """
+    Update entities or their attributes.
+    
+    **Features:**
+    - Update entity fields (name, value, description, etc.)
+    - Update existing attributes
+    - Add new attributes to entities
+    - Automatic state version increment
+    
+    **Use Cases:**
+    - Correct entity information
+    - Add new attributes to existing entities
+    - Update attribute values or descriptions
+    - Modify entity relationships
+    """
+    try:
+        logger.info(f"✏️ Updating entity {request.entity_id} for session: {request.session_id}")
+        entity_manager = EntityManager(agent.session_manager)
+        return entity_manager.update_entities(request)
+    except Exception as e:
+        logger.error(f"❌ Error in update_entities endpoint: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update entities: {str(e)}"
+        )
 
 
 @app.post("/chat", response_model=AgentResponse)

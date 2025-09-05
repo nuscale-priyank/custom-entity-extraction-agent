@@ -20,7 +20,7 @@ class AgentConfig:
 @dataclass
 class SessionConfig:
     """Configuration for session management"""
-    manager_type: str = "memory"  # memory, firestore
+    manager_type: str = "firestore"  # firestore, memory
     
     # Firestore settings
     firestore_project_id: str = "firestore-470903"
@@ -48,9 +48,9 @@ def load_config_from_env() -> tuple[AgentConfig, SessionConfig, LoggingConfig]:
         max_output_tokens=int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "2048"))
     )
     
-    # Session configuration - Use memory for development
+    # Session configuration - Use Firestore by default
     session_config = SessionConfig(
-        manager_type=os.getenv("SESSION_MANAGER_TYPE", "memory"),
+        manager_type=os.getenv("SESSION_MANAGER_TYPE", "firestore"),
         firestore_project_id=os.getenv("FIRESTORE_PROJECT_ID", "firestore-470903"),
         firestore_database=os.getenv("FIRESTORE_DATABASE", "(default)"),
         firestore_collection=os.getenv("FIRESTORE_COLLECTION", "chat_sessions")
@@ -78,6 +78,14 @@ def get_session_manager_kwargs(session_config: SessionConfig) -> dict:
         return {}
 
 
+def create_session_manager_from_config(session_config: SessionConfig):
+    """Create a session manager from configuration - streamlined approach"""
+    from session_managers import create_session_manager
+    
+    kwargs = get_session_manager_kwargs(session_config)
+    return create_session_manager(session_config.manager_type, **kwargs)
+
+
 # Default configuration
 DEFAULT_AGENT_CONFIG = AgentConfig(
     project_id="firestore-470903",
@@ -85,7 +93,7 @@ DEFAULT_AGENT_CONFIG = AgentConfig(
 )
 
 DEFAULT_SESSION_CONFIG = SessionConfig(
-    manager_type="memory"
+    manager_type="firestore"
 )
 
 DEFAULT_LOGGING_CONFIG = LoggingConfig(

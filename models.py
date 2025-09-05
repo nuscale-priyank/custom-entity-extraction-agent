@@ -70,8 +70,23 @@ class EntityType(str, Enum):
     OPERATIONAL_RULE = "operational_rule"
 
 
+class EntityAttribute(BaseModel):
+    """Model for entity attributes"""
+    attribute_id: str = Field(description="Unique identifier for the attribute")
+    attribute_name: str = Field(description="Name of the attribute")
+    attribute_value: Any = Field(description="Value of the attribute")
+    attribute_type: str = Field(description="Type of the attribute")
+    confidence: float = Field(description="Confidence score (0-1)")
+    source_field: str = Field(description="Source field for this attribute")
+    description: str = Field(description="Description of the attribute")
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = Field(default={}, description="Additional metadata")
+
+
 class ExtractedEntity(BaseModel):
-    """Model for extracted entities"""
+    """Model for extracted entities with attributes"""
+    entity_id: str = Field(description="Unique identifier for the entity")
     entity_type: EntityType = Field(description="Type of entity extracted")
     entity_name: str = Field(description="Name of the extracted entity")
     entity_value: str = Field(description="Value of the extracted entity")
@@ -80,6 +95,11 @@ class ExtractedEntity(BaseModel):
     description: str = Field(description="Description of the entity")
     relationships: Dict[str, str] = Field(default={}, description="Relationships with other entities")
     context_provider: str = Field(description="Context provider (e.g., credit_domain, generic)")
+    attributes: List[EntityAttribute] = Field(default=[], description="List of entity attributes")
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+    state_version: int = Field(default=1, description="State version for tracking changes")
+    metadata: Dict[str, Any] = Field(default={}, description="Additional metadata")
 
 
 class ChatMessage(BaseModel):
@@ -90,7 +110,7 @@ class ChatMessage(BaseModel):
 
 
 class ChatState(BaseModel):
-    """Model for chat state management"""
+    """Model for chat state management with state versioning"""
     session_id: str = Field(description="Session identifier")
     messages: List[ChatMessage] = Field(default=[], description="Chat messages")
     selected_segments: List[CreditDomainSegment] = Field(default=[], description="Selected credit domain segments")
@@ -98,6 +118,8 @@ class ChatState(BaseModel):
     selected_bc3_fields: List[Dict[str, Any]] = Field(default=[], description="Selected BC3 fields with context")
     selected_asset_columns: List[Dict[str, Any]] = Field(default=[], description="Selected asset columns with context")
     extracted_entities: List[ExtractedEntity] = Field(default=[], description="Extracted entities")
+    state_version: int = Field(default=1, description="Current state version")
+    last_updated: datetime = Field(default_factory=datetime.now, description="Last update timestamp")
     metadata: Dict[str, Any] = Field(default={}, description="Additional metadata")
 
 
@@ -131,6 +153,58 @@ class HealthResponse(BaseModel):
     status: str = Field(description="Service status")
     timestamp: datetime = Field(description="Current timestamp")
     version: str = Field(description="API version")
+
+
+# CRUD Request/Response Models
+class ReadEntityRequest(BaseModel):
+    """Request to read entity/entities"""
+    session_id: str = Field(description="Session identifier")
+    entity_id: Optional[str] = Field(default=None, description="Specific entity ID to read")
+    entity_type: Optional[EntityType] = Field(default=None, description="Filter by entity type")
+    include_attributes: bool = Field(default=True, description="Include entity attributes")
+    state_version: Optional[int] = Field(default=None, description="Specific state version to read")
+
+
+class ReadEntityResponse(BaseModel):
+    """Response for reading entities"""
+    entities: List[ExtractedEntity] = Field(description="List of entities")
+    state_version: int = Field(description="Current state version")
+    total_count: int = Field(description="Total number of entities")
+    success: bool = Field(description="Operation success status")
+    message: str = Field(description="Response message")
+
+
+class DeleteEntityRequest(BaseModel):
+    """Request to delete entity/entities or attributes"""
+    session_id: str = Field(description="Session identifier")
+    entity_id: Optional[str] = Field(default=None, description="Entity ID to delete")
+    attribute_ids: Optional[List[str]] = Field(default=None, description="Attribute IDs to delete")
+    delete_all: bool = Field(default=False, description="Delete all entities in session")
+
+
+class DeleteEntityResponse(BaseModel):
+    """Response for deleting entities/attributes"""
+    deleted_entities: List[str] = Field(description="List of deleted entity IDs")
+    deleted_attributes: List[str] = Field(description="List of deleted attribute IDs")
+    state_version: int = Field(description="New state version after deletion")
+    success: bool = Field(description="Operation success status")
+    message: str = Field(description="Response message")
+
+
+class UpdateEntityRequest(BaseModel):
+    """Request to update entity or attributes"""
+    session_id: str = Field(description="Session identifier")
+    entity_id: str = Field(description="Entity ID to update")
+    entity_updates: Optional[Dict[str, Any]] = Field(default=None, description="Entity field updates")
+    attribute_updates: Optional[List[Dict[str, Any]]] = Field(default=None, description="Attribute updates")
+
+
+class UpdateEntityResponse(BaseModel):
+    """Response for updating entities/attributes"""
+    updated_entity: Optional[ExtractedEntity] = Field(description="Updated entity")
+    state_version: int = Field(description="New state version after update")
+    success: bool = Field(description="Operation success status")
+    message: str = Field(description="Response message")
 
 
 # Backward compatibility aliases

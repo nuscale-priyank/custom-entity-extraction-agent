@@ -16,6 +16,7 @@ from entity_collection_models import (
     DeleteEntityRequest, DeleteEntityResponse,
     EntityType
 )
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -23,21 +24,24 @@ logger = logging.getLogger(__name__)
 class EntityCollectionManager:
     """Manages the custom_entities collection in Firestore"""
     
-    def __init__(self, project_id: str, collection_name: str = "custom_entities"):
+    def __init__(self, project_id: str, collection_name: str = None, database_id: str = None):
         """
         Initialize the Entity Collection Manager.
         
         Args:
             project_id: Google Cloud Project ID
-            collection_name: Name of the Firestore collection for entities
+            collection_name: Name of the Firestore collection for entities (defaults to config)
+            database_id: Firestore database ID (defaults to config)
         """
         self.project_id = project_id
-        self.collection_name = collection_name
-        self.db = firestore.Client(project=project_id)
-        self.collection = self.db.collection(collection_name)
+        self.collection_name = collection_name or Config.FIRESTORE_COLLECTION_CUSTOM_ENTITIES
+        self.database_id = database_id or Config.get_database_id()
+        self.db = firestore.Client(project=project_id, database=self.database_id)
+        self.collection = self.db.collection(self.collection_name)
         
-        logger.info(f"🔧 EntityCollectionManager initialized for project: {project_id}")
-        logger.info(f"📁 Using collection: {collection_name}")
+        logger.info(f"EntityCollectionManager initialized for project: {project_id}")
+        logger.info(f"Using database: {self.database_id}")
+        logger.info(f"Using collection: {self.collection_name}")
     
     def _get_entity_document(self, session_id: str) -> Optional[EntityCollectionDocument]:
         """Get the entity document for a session"""

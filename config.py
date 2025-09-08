@@ -11,6 +11,7 @@ class Config:
     # Google Cloud settings
     PROJECT_ID: str = "firestore-470903"
     LOCATION: str = "us-central1"
+    DATABASE_ID: str = "llmops-demo-track2"
     
     # LLM settings
     MODEL_NAME: str = "gemini-2.5-pro"
@@ -44,3 +45,8 @@ class Config:
     def get_max_output_tokens(cls) -> int:
         """Get max output tokens from environment or default"""
         return int(os.getenv("LLM_MAX_OUTPUT_TOKENS", cls.MAX_OUTPUT_TOKENS))
+    
+    @classmethod
+    def get_database_id(cls) -> str:
+        """Get database ID from environment or default"""
+        return os.getenv("FIRESTORE_DATABASE_ID", cls.DATABASE_ID)

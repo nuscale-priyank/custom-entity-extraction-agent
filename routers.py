@@ -18,14 +18,18 @@ from entity_collection_models import (
     UpdateEntityRequest as FirestoreUpdateEntityRequest, DeleteEntityRequest as FirestoreDeleteEntityRequest
 )
 from config import Config
+from conversational_agent import ConversationalAgent
+from chat_session_manager import ChatSessionManager
 
 logger = logging.getLogger(__name__)
 
 # Create router
 router = APIRouter()
 
-# Initialize entity manager
-entity_manager = EntityCollectionManager(Config.get_project_id())
+# Initialize managers
+entity_manager = EntityCollectionManager(Config.get_project_id(), database_id=Config.get_database_id())
+conversational_agent = ConversationalAgent(Config.get_project_id())
+chat_session_manager = ChatSessionManager(Config.get_project_id(), database_id=Config.get_database_id())
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -290,4 +294,82 @@ async def delete_attribute(entity_id: str, attribute_id: str, request: DeleteAtt
         
     except Exception as e:
         logger.error(f"Error deleting attribute: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Conversational Agent Endpoints
+
+@router.post("/conversation", response_model=ChatResponse)
+async def conversation(request: ChatRequest):
+    """Conversational endpoint for natural entity building"""
+    try:
+        logger.info(f"Conversation request received - Session: {request.session_id}")
+        logger.info(f"Message: {request.message}")
+        
+        # Process with conversational agent
+        result = conversational_agent.process_message(
+            session_id=request.session_id,
+            user_message=request.message,
+            selected_bc3_fields=request.selected_bc3_fields,
+            selected_asset_columns=request.selected_asset_columns
+        )
+        
+        logger.info(f"Conversation processed - Success: {result['success']}, Entities: {result['entities_created']}")
+        
+        return ChatResponse(**result)
+        
+    except Exception as e:
+        logger.error(f"Error processing conversation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/conversation/{session_id}/history")
+async def get_conversation_history(session_id: str, limit: int = 10):
+    """Get conversation history for a session"""
+    try:
+        logger.info(f"Getting conversation history for session: {session_id}")
+        
+        history = chat_session_manager.get_conversation_history(session_id, limit)
+        
+        return {
+            "session_id": session_id,
+            "messages": [msg.model_dump(mode='json') for msg in history],
+            "total_messages": len(history)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting conversation history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/conversation/{session_id}/summary")
+async def get_session_summary(session_id: str):
+    """Get session summary"""
+    try:
+        logger.info(f"Getting session summary for: {session_id}")
+        
+        summary = chat_session_manager.get_session_summary(session_id)
+        
+        return summary
+        
+    except Exception as e:
+        logger.error(f"Error getting session summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/conversation/{session_id}/context")
+async def update_session_context(session_id: str, context_updates: dict):
+    """Update session context with BC3 fields or asset columns"""
+    try:
+        logger.info(f"Updating context for session: {session_id}")
+        
+        success = chat_session_manager.update_context(session_id, context_updates)
+        
+        if success:
+            return {"success": True, "message": "Context updated successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+    except Exception as e:
+        logger.error(f"Error updating session context: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -40,7 +40,7 @@ def create_entities(session_id: str, entities_data: str) -> str:
         )
         
         # Create entities
-        manager = EntityCollectionManager(Config.get_project_id())
+        manager = EntityCollectionManager(Config.get_project_id(), database_id=Config.get_database_id())
         response = manager.create_entities(request)
         
         logger.info(f"Created {response.total_created} entities")

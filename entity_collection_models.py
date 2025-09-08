@@ -3,7 +3,7 @@ Models for the custom_entities collection in Firestore.
 This collection stores all entity-related data separately from chat sessions.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from enum import Enum
@@ -35,8 +35,8 @@ class EntityAttribute(BaseModel):
     source_field: str = ""
     description: str = ""
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class CustomEntity(BaseModel):
@@ -53,8 +53,8 @@ class CustomEntity(BaseModel):
     context_provider: str = "credit_domain"  # credit_domain, data_asset, user_created
     attributes: List[EntityAttribute] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = "system"  # system, user, llm
     version: int = 1
 
@@ -66,8 +66,8 @@ class EntityCollectionDocument(BaseModel):
     total_entities: int = 0
     last_entity_created: Optional[datetime] = None
     last_entity_updated: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 

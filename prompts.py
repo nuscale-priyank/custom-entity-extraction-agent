@@ -69,14 +69,30 @@ def get_context_prompt(bc3_fields: list = None, asset_columns: list = None) -> s
             field = field_data.get("field", {})
             segment = field_data.get("segment_context", {})
             
-            # Concise format
-            context_parts.append(f"{i}. {field.get('description', 'Unknown')} ({field.get('data_type', 'Unknown')}) - {segment.get('segment_name', 'Unknown')}")
+            # Use field_name or description, and get data_type from field
+            field_name = field.get('field_name', field.get('description', 'Unknown'))
+            data_type = field.get('data_type', 'string')  # Default to string if not specified
+            segment_name = segment.get('segment_name', 'Unknown')
+            
+            context_parts.append(f"{i}. {field_name} ({data_type}) - {segment_name}")
     
     if asset_columns:
         context_parts.append("Asset Columns:")
         for i, column_data in enumerate(asset_columns, 1):
-            # Concise format
-            context_parts.append(f"{i}. {column_data.get('column_name', 'Unknown')} ({column_data.get('data_type', 'Unknown')}) - {column_data.get('description', 'Unknown')}")
+            # Get asset context information
+            asset_context = column_data.get('asset_context', {})
+            asset_name = asset_context.get('asset_name', 'Unknown')
+            
+            # Concise format with asset context
+            column_name = column_data.get('column_name', 'Unknown')
+            data_type = column_data.get('data_type', 'Unknown')
+            description = column_data.get('description', 'No description')
+            
+            # Truncate long descriptions
+            if len(description) > 50:
+                description = description[:47] + "..."
+            
+            context_parts.append(f"{i}. {column_name} ({data_type}) - {asset_name}: {description}")
     
     if not context_parts:
         return "No context provided"

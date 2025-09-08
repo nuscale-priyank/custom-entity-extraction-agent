@@ -4,7 +4,7 @@ This manager handles all CRUD operations for entities separately from chat sessi
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from google.cloud import firestore
 
@@ -65,18 +65,40 @@ class EntityCollectionManager:
     def _save_entity_document(self, session_id: str, entity_doc: EntityCollectionDocument) -> bool:
         """Save the entity document to Firestore"""
         try:
-            entity_doc.updated_at = datetime.now()
+            entity_doc.updated_at = datetime.now(timezone.utc)
             entity_doc.total_entities = len(entity_doc.entities)
             
             # Update last entity timestamps
             if entity_doc.entities:
+                # Ensure all datetime objects are timezone-aware for comparison
+                entity_created_times = []
+                entity_updated_times = []
+                
+                for e in entity_doc.entities:
+                    # Convert to timezone-aware if needed
+                    created_at = e.created_at
+                    updated_at = e.updated_at
+                    
+                    if created_at.tzinfo is None:
+                        created_at = created_at.replace(tzinfo=timezone.utc)
+                    if updated_at.tzinfo is None:
+                        updated_at = updated_at.replace(tzinfo=timezone.utc)
+                    
+                    entity_created_times.append(created_at)
+                    entity_updated_times.append(updated_at)
+                
+                # Ensure document created_at is timezone-aware
+                doc_created_at = entity_doc.created_at
+                if doc_created_at.tzinfo is None:
+                    doc_created_at = doc_created_at.replace(tzinfo=timezone.utc)
+                
                 entity_doc.last_entity_created = max(
-                    (e.created_at for e in entity_doc.entities), 
-                    default=entity_doc.created_at
+                    entity_created_times, 
+                    default=doc_created_at
                 )
                 entity_doc.last_entity_updated = max(
-                    (e.updated_at for e in entity_doc.entities), 
-                    default=entity_doc.created_at
+                    entity_updated_times, 
+                    default=doc_created_at
                 )
             
             data = entity_doc.model_dump()
@@ -297,7 +319,7 @@ class EntityCollectionManager:
                                 for key, value in attr_update.items():
                                     if hasattr(attr, key) and key != "attribute_id":
                                         setattr(attr, key, value)
-                                attr.updated_at = datetime.now()
+                                attr.updated_at = datetime.now(timezone.utc)
                                 break
                     else:
                         # Create new attribute
@@ -312,7 +334,7 @@ class EntityCollectionManager:
                         )
                         entity_to_update.attributes.append(new_attr)
             
-            entity_to_update.updated_at = datetime.now()
+            entity_to_update.updated_at = datetime.now(timezone.utc)
             entity_to_update.version += 1
             
             # Save the updated document
@@ -392,7 +414,7 @@ class EntityCollectionManager:
                             attr_id for attr_id in request.attribute_ids
                             if any(attr.attribute_id == attr_id for attr in entity_to_update.attributes)
                         ]
-                        entity_to_update.updated_at = datetime.now()
+                        entity_to_update.updated_at = datetime.now(timezone.utc)
                 else:
                     # Delete entire entity
                     entity_doc.entities = [

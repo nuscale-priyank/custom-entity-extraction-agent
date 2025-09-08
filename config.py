@@ -1,101 +1,46 @@
 """
-Configuration management for the Custom Entity Extraction Agent
+Configuration settings for the BC3 AI Agent
 """
 
 import os
 from typing import Optional
-from dataclasses import dataclass
 
-
-@dataclass
-class AgentConfig:
-    """Configuration for the agent"""
-    project_id: str
-    location: str = "us-central1"
-    model_name: str = "gemini-2.5-flash-lite"
-    temperature: float = 0.1
-    max_output_tokens: int = 2048
-
-
-@dataclass
-class SessionConfig:
-    """Configuration for session management"""
-    manager_type: str = "firestore"  # firestore, memory
+class Config:
+    """Configuration class for the agent"""
+    
+    # Google Cloud settings
+    PROJECT_ID: str = "firestore-470903"
+    LOCATION: str = "us-central1"
+    
+    # LLM settings
+    MODEL_NAME: str = "gemini-2.5-pro"
+    TEMPERATURE: float = 0
+    MAX_OUTPUT_TOKENS: int = 64000
     
     # Firestore settings
-    firestore_project_id: str = "firestore-470903"
-    firestore_database: str = "(default)"  # Firestore database name
-    firestore_collection: str = "chat_sessions"
-
-
-@dataclass
-class LoggingConfig:
-    """Configuration for logging"""
-    level: str = "INFO"
-    format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    file_path: Optional[str] = None
-
-
-def load_config_from_env() -> tuple[AgentConfig, SessionConfig, LoggingConfig]:
-    """Load configuration from environment variables"""
+    FIRESTORE_COLLECTION_CHAT_SESSIONS: str = "chat_sessions"
+    FIRESTORE_COLLECTION_CUSTOM_ENTITIES: str = "custom_entities"
     
-    # Agent configuration
-    agent_config = AgentConfig(
-        project_id=os.getenv("GOOGLE_CLOUD_PROJECT", "firestore-470903"),
-        location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
-        model_name=os.getenv("LLM_MODEL_NAME", "gemini-2.5-flash-lite"),
-        temperature=float(os.getenv("LLM_TEMPERATURE", "0.1")),
-        max_output_tokens=int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "2048"))
-    )
+    # API settings
+    API_HOST: str = "0.0.0.0"
+    API_PORT: int = 8000
     
-    # Session configuration - Use Firestore by default
-    session_config = SessionConfig(
-        manager_type=os.getenv("SESSION_MANAGER_TYPE", "firestore"),
-        firestore_project_id=os.getenv("FIRESTORE_PROJECT_ID", "firestore-470903"),
-        firestore_database=os.getenv("FIRESTORE_DATABASE", "(default)"),
-        firestore_collection=os.getenv("FIRESTORE_COLLECTION", "chat_sessions")
-    )
+    @classmethod
+    def get_project_id(cls) -> str:
+        """Get project ID from environment or default"""
+        return os.getenv("GOOGLE_CLOUD_PROJECT", cls.PROJECT_ID)
     
-    # Logging configuration
-    logging_config = LoggingConfig(
-        level=os.getenv("LOG_LEVEL", "INFO"),
-        format=os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
-        file_path=os.getenv("LOG_FILE_PATH")
-    )
+    @classmethod
+    def get_model_name(cls) -> str:
+        """Get model name from environment or default"""
+        return os.getenv("LLM_MODEL_NAME", cls.MODEL_NAME)
     
-    return agent_config, session_config, logging_config
-
-
-def get_session_manager_kwargs(session_config: SessionConfig) -> dict:
-    """Get keyword arguments for session manager creation"""
+    @classmethod
+    def get_temperature(cls) -> float:
+        """Get temperature from environment or default"""
+        return float(os.getenv("LLM_TEMPERATURE", cls.TEMPERATURE))
     
-    if session_config.manager_type == "firestore":
-        return {
-            "project_id": session_config.firestore_project_id,
-            "collection_name": session_config.firestore_collection
-        }
-    else:
-        return {}
-
-
-def create_session_manager_from_config(session_config: SessionConfig):
-    """Create a session manager from configuration - streamlined approach"""
-    from session_managers import create_session_manager
-    
-    kwargs = get_session_manager_kwargs(session_config)
-    return create_session_manager(session_config.manager_type, **kwargs)
-
-
-# Default configuration
-DEFAULT_AGENT_CONFIG = AgentConfig(
-    project_id="firestore-470903",
-    location="us-central1"
-)
-
-DEFAULT_SESSION_CONFIG = SessionConfig(
-    manager_type="firestore"
-)
-
-DEFAULT_LOGGING_CONFIG = LoggingConfig(
-    level="INFO"
-)
+    @classmethod
+    def get_max_output_tokens(cls) -> int:
+        """Get max output tokens from environment or default"""
+        return int(os.getenv("LLM_MAX_OUTPUT_TOKENS", cls.MAX_OUTPUT_TOKENS))

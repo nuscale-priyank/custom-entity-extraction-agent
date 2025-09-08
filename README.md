@@ -1,532 +1,591 @@
-# 🚀 Custom Entity Extraction Agent
+# BC3 AI Agent - Entity Extraction and Management
 
-> **Extract meaningful business insights from your data using AI!**
+A comprehensive entity extraction and management agent for BC3 (Credit Domain) data and data assets with full CRUD operations.
 
-## 🎯 What is This?
+## Architecture
 
-Imagine you have a smart assistant that can look at your business data and automatically find **new, valuable insights** that weren't obvious before. That's exactly what this Custom Entity Extraction Agent does!
+**Modular & Clean:**
+- `main.py` - FastAPI server entry point (23 lines)
+- `routers.py` - All API endpoints with CRUD operations (269 lines)
+- `models.py` - Pydantic models for API requests/responses (95 lines)
+- `agent.py` - Core agent logic (122 lines)
+- `config.py` - Configuration settings (47 lines)
+- `tools.py` - LangChain tools (68 lines)
+- `prompts.py` - System prompts (88 lines)
+- `entity_collection_manager.py` - Firestore operations (432 lines)
+- `entity_collection_models.py` - Data models (140 lines)
 
-### 🌟 In Simple Terms:
-- **Input**: You give it some business data (like customer information, credit scores, account details)
-- **AI Magic**: It analyzes this data and finds **new patterns, relationships, and insights**
-- **Output**: You get **new business entities** that help you make better decisions
+## Features
 
-## 🏗️ How It Works (Simple Explanation)
+- ✅ **Entity Extraction**: `create_entities` tool - extracts and saves entities
+- ✅ **Full CRUD Operations**: Create, Read, Update, Delete entities and attributes
+- ✅ **Direct LLM Interaction**: No complex workflows
+- ✅ **Firestore Integration**: Saves entities to `custom_entities` collection
+- ✅ **RESTful API**: Complete set of endpoints for entity management
+- ✅ **Configurable**: Environment variables and config.py
+- ✅ **Modular**: Separated concerns (models, routers, config, tools, prompts)
+- ✅ **Entity-Attribute Structure**: Creates meaningful business entities with multiple attributes
+- ✅ **No Emojis**: Clean logging and responses
 
-### 1. **Data Selection** 📊
-You pick which pieces of data you want the AI to analyze:
-- **BC3 Fields**: Business rules and definitions (like "Credit Score", "Account Number")
-- **Asset Columns**: Actual data from your databases (like customer credit scores, account balances)
+## Configuration
 
-### 2. **AI Analysis** 🤖
-The AI looks at your selected data and thinks:
-- "What new insights can I find here?"
-- "What relationships exist between these data points?"
-- "What business rules can I create?"
+All settings are managed in `config.py`:
 
-### 3. **Entity Extraction** ✨
-The AI creates **new entities** like:
-- **Credit Risk Score** (combining credit score + debt + limit)
-- **Account Health Status** (based on multiple factors)
-- **Risk Alerts** (when certain conditions are met)
+- **Google Cloud**: Project ID, location
+- **LLM**: Model name, temperature, max tokens
+- **Firestore**: Collection names
+- **API**: Host, port
 
-## 🛠️ Tech Stack
-
-- **Backend**: FastAPI (Python web framework)
-- **AI Engine**: Google Vertex AI (Gemini 2.5 Flash Lite)
-- **Workflow**: LangGraph (AI workflow management)
-- **Session Storage**: In-memory (can be changed to Firestore, Redis, MongoDB)
-- **Frontend Demo**: Streamlit (for testing)
-
-## 🚀 Quick Start
-
-### 1. **Install Dependencies**
+Override with environment variables:
 ```bash
-# Create virtual environment
-python -m venv .venv
-
-# Activate it
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install packages
-pip install -r requirements.txt
-```
-
-### 2. **Set Up Google Cloud**
-```bash
-# Set your Google Cloud project
 export GOOGLE_CLOUD_PROJECT="your-project-id"
-export GOOGLE_APPLICATION_CREDENTIALS="path/to/your/service-account-key.json"
+export LLM_MODEL_NAME="gemini-2.5-pro"
+export LLM_TEMPERATURE="0"
+export LLM_MAX_OUTPUT_TOKENS="64000"
 ```
 
-### 3. **Start the Backend**
+## Quick Start
+
+1. **Install dependencies:**
 ```bash
-python main.py --port 8001
+   pip install -r requirements.txt
 ```
 
-### 4. **Test the API**
+2. **Set up Google Cloud:**
 ```bash
-curl http://localhost:8001/health
-```
+   gcloud auth login
+   gcloud config set project firestore-470903
+   gcloud auth application-default set-quota-project firestore-470903
+   ```
 
-## 📡 API Endpoints
+3. **Run the server:**
+   ```bash
+   python main.py
+   ```
 
-### 🔍 **Health Check**
-```http
-GET /health
-```
-**Response:**
+4. **Test the API:**
+   ```bash
+   curl -X POST "http://localhost:8000/chat" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "message": "Extract entities from BC3 fields",
+       "session_id": "test_001",
+       "selected_bc3_fields": [...],
+       "selected_asset_columns": [...]
+     }'
+   ```
+
+5. **View API Documentation:**
+   - Open http://localhost:8000/docs in your browser
+   - Interactive Swagger UI with all endpoints
+   - Test endpoints directly from the browser
+
+## API Documentation
+
+### Chat Endpoint
+
+**POST** `/chat`
+
+Extract entities from BC3 fields and asset columns, creating meaningful business entities with attributes.
+
+### Entity CRUD Operations
+
+**GET** `/entities?session_id={id}` - Read entities for a session
+**POST** `/entities` - Create new entity
+**PUT** `/entities` - Update existing entity
+**DELETE** `/entities` - Delete entity
+
+### Attribute CRUD Operations
+
+**GET** `/entities/{entity_id}/attributes` - Read attributes for an entity
+**POST** `/entities/{entity_id}/attributes` - Create new attribute
+**PUT** `/entities/{entity_id}/attributes/{attribute_id}` - Update attribute
+**DELETE** `/entities/{entity_id}/attributes/{attribute_id}` - Delete attribute
+
+#### Request Body
+
 ```json
 {
-  "status": "healthy",
-  "timestamp": "2025-09-01T23:30:00.000000",
-  "version": "2.0.0"
-}
-```
-
-### 💬 **Chat with Agent**
-```http
-POST /chat
-```
-
-**Request Body:**
-```json
-{
-  "message": "Extract meaningful entities from the selected context",
-  "session_id": "user_session_123",
+  "message": "string",
+  "session_id": "string",
   "selected_bc3_fields": [
     {
       "field": {
-        "description": "Credit Score",
-        "definition": "A numerical representation of creditworthiness",
-        "known_implementations": ["FICO", "VantageScore"],
-        "valid_values": ["300-850"],
-        "notes": "Higher scores indicate better credit"
+        "field_name": "string",
+        "description": "string",
+        "data_type": "string",
+        "valid_values": ["string"],
+        "notes": "string",
+        "known_implementations": ["string"]
       },
       "segment_context": {
-        "segment_name": "Credit Accounts"
+        "segment_name": "string",
+        "segment_description": "string"
       }
     }
   ],
   "selected_asset_columns": [
     {
-      "column": {
-        "column_name": "credit_score",
-        "data_type": "INTEGER",
-        "description": "Customer credit score"
-      },
-      "asset_context": {
-        "asset_name": "Credit Database",
-        "workspace_name": "Financial Data",
-        "big_query_table_name": "credit.credit_scores"
-      }
+      "column_name": "string",
+      "data_type": "string",
+      "description": "string",
+      "asset_name": "string",
+      "workspace_name": "string",
+      "big_query_table_name": "string"
     }
   ]
 }
 ```
 
-**Response:**
+#### Response
+
 ```json
 {
-  "response": "EXTRACTED ENTITIES:\n1. Derived Business Metric: Credit Risk Score...",
-  "extracted_entities": [
-    {
-      "entity_type": "metadata",
-      "entity_name": "Credit Risk Score",
-      "entity_value": "[Calculated Value]",
-      "confidence": 0.9,
-      "source_field": "credit_score (Credit Database)",
-      "description": "Combined risk assessment based on credit score and utilization",
-      "context_provider": "credit_domain"
-    }
-  ],
-  "chat_state": {...},
-  "confidence_score": 0.9,
-  "processing_time": 2.34,
-  "metadata": {"session_id": "user_session_123"}
-}
-```
-
-### 📊 **Get Session Entities**
-```http
-GET /entities/{session_id}
-```
-
-**Response:**
-```json
-{
-  "session_id": "user_session_123",
-  "total_entities": 2,
+  "response": "string",
+  "success": true,
+  "entities_created": 2,
   "entities": [
     {
-      "entity_number": 1,
-      "entity_type": "metadata",
-      "entity_name": "Credit Risk Score",
-      "entity_value": "[Calculated Value]",
+      "entity_id": "string",
+      "session_id": "string",
+      "entity_type": "asset",
+      "entity_name": "string",
+      "entity_value": "string",
+      "confidence": 0.95,
+      "source_field": "string",
+      "description": "string",
+      "attributes": [
+        {
+          "attribute_id": "string",
+          "attribute_name": "string",
+          "attribute_value": "string",
+          "attribute_type": "string",
       "confidence": 0.9,
-      "source_field": "credit_score (Credit Database)",
-      "description": "Combined risk assessment based on credit score and utilization",
-      "context_provider": "credit_domain"
-    }
-  ],
-  "timestamp": "2025-09-01T23:30:00.000000"
-}
-```
-
-### 📋 **Get Context Providers**
-```http
-GET /context-providers
-```
-
-**Response:**
-```json
-{
-  "context_providers": [
-    {
-      "name": "credit_domain",
-      "description": "Credit Domain (BC3) data structures with business dictionary",
-      "features": ["Segment analysis", "Business dictionary extraction", "Field validation", "Implementation mapping"]
+          "source_field": "string",
+          "description": "string"
+        }
+      ]
     }
   ]
 }
 ```
 
-### 📝 **Get Logs**
-```http
-GET /logs?lines=50
-```
+### Health Check
 
-**Response:**
+**GET** `/health`
+
+Returns server health status.
+
 ```json
 {
-  "log_file": "fastapi.log",
-  "total_lines": 150,
-  "recent_lines": ["2025-09-01 23:30:00 - INFO - Request processed..."],
-  "timestamp": "2025-09-01T23:30:00.000000"
+  "status": "healthy",
+  "agent": "simple"
 }
 ```
 
-## 🎨 Frontend Integration Guide
+## Comprehensive Test Payloads
 
-### **React Example**
+### Test 1: Basic Entity Extraction
 
-#### 1. **Install Dependencies**
 ```bash
-npm install axios
-```
-
-#### 2. **Create API Service**
-```javascript
-// services/entityAgent.js
-import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:8001';
-
-export const entityAgentAPI = {
-  // Health check
-  checkHealth: () => axios.get(`${API_BASE_URL}/health`),
-  
-  // Chat with agent
-  chat: (payload) => axios.post(`${API_BASE_URL}/chat`, payload),
-  
-  // Get session entities
-  getEntities: (sessionId) => axios.get(`${API_BASE_URL}/entities/${sessionId}`),
-  
-  // Get context providers
-  getContextProviders: () => axios.get(`${API_BASE_URL}/context-providers`)
-};
-```
-
-#### 3. **Create Chat Component**
-```jsx
-// components/EntityChat.jsx
-import React, { useState, useEffect } from 'react';
-import { entityAgentAPI } from '../services/entityAgent';
-
-const EntityChat = () => {
-  const [message, setMessage] = useState('');
-  const [selectedBC3Fields, setSelectedBC3Fields] = useState([]);
-  const [selectedAssetColumns, setSelectedAssetColumns] = useState([]);
-  const [entities, setEntities] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      const payload = {
-        message,
-        session_id: `session_${Date.now()}`,
-        selected_bc3_fields: selectedBC3Fields,
-        selected_asset_columns: selectedAssetColumns
-      };
-      
-      const response = await entityAgentAPI.chat(payload);
-      setEntities(response.data.extracted_entities);
-      
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="entity-chat">
-      <h2>Custom Entity Extraction</h2>
-      
-      {/* BC3 Fields Selection */}
-      <div className="selection-section">
-        <h3>Select BC3 Fields</h3>
-        {/* Add your BC3 field selection UI here */}
-      </div>
-      
-      {/* Asset Columns Selection */}
-      <div className="selection-section">
-        <h3>Select Asset Columns</h3>
-        {/* Add your asset column selection UI here */}
-      </div>
-      
-      {/* Chat Form */}
-      <form onSubmit={handleSubmit}>
-        <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Ask the agent to extract entities..."
-          rows={4}
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? 'Processing...' : 'Extract Entities'}
-        </button>
-      </form>
-      
-      {/* Results */}
-      {entities.length > 0 && (
-        <div className="results">
-          <h3>Extracted Entities ({entities.length})</h3>
-          {entities.map((entity, index) => (
-            <div key={index} className="entity-card">
-              <h4>{entity.entity_name}</h4>
-              <p><strong>Type:</strong> {entity.entity_type}</p>
-              <p><strong>Value:</strong> {entity.entity_value}</p>
-              <p><strong>Confidence:</strong> {entity.confidence}</p>
-              <p><strong>Description:</strong> {entity.description}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default EntityChat;
-```
-
-#### 4. **Add to Your App**
-```jsx
-// App.js
-import EntityChat from './components/EntityChat';
-
-function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <h1>Custom Entity Extraction Agent</h1>
-      </header>
-      <main>
-        <EntityChat />
-      </main>
-    </div>
-  );
-}
-```
-
-### **Vue.js Example**
-
-#### 1. **Install Dependencies**
-```bash
-npm install axios
-```
-
-#### 2. **Create API Service**
-```javascript
-// services/entityAgent.js
-import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:8001';
-
-export const entityAgentAPI = {
-  checkHealth: () => axios.get(`${API_BASE_URL}/health`),
-  chat: (payload) => axios.post(`${API_BASE_URL}/chat`, payload),
-  getEntities: (sessionId) => axios.get(`${API_BASE_URL}/entities/${sessionId}`),
-  getContextProviders: () => axios.get(`${API_BASE_URL}/context-providers`)
-};
-```
-
-#### 3. **Create Chat Component**
-```vue
-<!-- components/EntityChat.vue -->
-<template>
-  <div class="entity-chat">
-    <h2>Custom Entity Extraction</h2>
-    
-    <!-- BC3 Fields Selection -->
-    <div class="selection-section">
-      <h3>Select BC3 Fields</h3>
-      <!-- Add your BC3 field selection UI here -->
-    </div>
-    
-    <!-- Asset Columns Selection -->
-    <div class="selection-section">
-      <h3>Select Asset Columns</h3>
-      <!-- Add your asset column selection UI here -->
-    </div>
-    
-    <!-- Chat Form -->
-    <form @submit.prevent="handleSubmit">
-      <textarea
-        v-model="message"
-        placeholder="Ask the agent to extract entities..."
-        rows="4"
-      />
-      <button type="submit" :disabled="loading">
-        {{ loading ? 'Processing...' : 'Extract Entities' }}
-      </button>
-    </form>
-    
-    <!-- Results -->
-    <div v-if="entities.length > 0" class="results">
-      <h3>Extracted Entities ({{ entities.length }})</h3>
-      <div
-        v-for="(entity, index) in entities"
-        :key="index"
-        class="entity-card"
-      >
-        <h4>{{ entity.entity_name }}</h4>
-        <p><strong>Type:</strong> {{ entity.entity_type }}</p>
-        <p><strong>Value:</strong> {{ entity.entity_value }}</p>
-        <p><strong>Confidence:</strong> {{ entity.confidence }}</p>
-        <p><strong>Description:</strong> {{ entity.description }}</p>
-      </div>
-    </div>
-  </div>
-</template>
-
-<script>
-import { entityAgentAPI } from '../services/entityAgent';
-
-export default {
-  name: 'EntityChat',
-  data() {
-    return {
-      message: '',
-      selectedBC3Fields: [],
-      selectedAssetColumns: [],
-      entities: [],
-      loading: false
-    };
-  },
-  methods: {
-    async handleSubmit() {
-      this.loading = true;
-      
-      try {
-        const payload = {
-          message: this.message,
-          session_id: `session_${Date.now()}`,
-          selected_bc3_fields: this.selectedBC3Fields,
-          selected_asset_columns: this.selectedAssetColumns
-        };
-        
-        const response = await entityAgentAPI.chat(payload);
-        this.entities = response.data.extracted_entities;
-        
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        this.loading = false;
+curl -X POST "http://localhost:8000/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Extract entities from the BC3 fields and create meaningful business entities",
+    "session_id": "test_basic_001",
+    "selected_bc3_fields": [
+      {
+        "field": {
+          "field_name": "account_number",
+          "description": "Unique identifier for the credit account",
+          "data_type": "string",
+          "valid_values": ["numeric"],
+          "notes": "Masked for security",
+          "known_implementations": ["account_number", "credit_account"]
+        },
+        "segment_context": {
+          "segment_name": "Account Management",
+          "segment_description": "Manages customer account information"
+        }
       }
+    ],
+    "selected_asset_columns": [
+      {
+        "column_name": "credit_score",
+        "data_type": "Numeric",
+        "description": "Customer credit score",
+        "asset_name": "Consumer Credit Database",
+        "workspace_name": "Credit Analytics Workspace",
+        "big_query_table_name": "credit_analytics.consumer_credit_data"
+      }
+    ]
+  }'
+```
+
+### Test 2: Multiple Entities with Multiple Attributes
+
+```bash
+curl -X POST "http://localhost:8000/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Extract entities from the BC3 fields and create meaningful business entities",
+    "session_id": "test_comprehensive_001",
+    "selected_bc3_fields": [
+      {
+        "field": {
+          "field_name": "account_number",
+          "description": "Unique identifier for the credit account",
+          "data_type": "string",
+          "valid_values": ["numeric"],
+          "notes": "Masked for security",
+          "known_implementations": ["account_number", "credit_account"]
+        },
+        "segment_context": {
+          "segment_name": "Account Management",
+          "segment_description": "Manages customer account information"
+        }
+      },
+      {
+        "field": {
+          "field_name": "credit_limit",
+          "description": "Maximum credit amount allowed for the account",
+          "data_type": "numeric",
+          "valid_values": ["positive numbers"],
+          "notes": "Updated based on risk assessment",
+          "known_implementations": ["credit_limit", "max_credit"]
+        },
+        "segment_context": {
+          "segment_name": "Risk Management",
+          "segment_description": "Manages credit risk and limits"
+        }
+      },
+      {
+        "field": {
+          "field_name": "account_status",
+          "description": "Current status of the credit account",
+          "data_type": "string",
+          "valid_values": ["active", "suspended", "closed"],
+          "notes": "Updated in real-time",
+          "known_implementations": ["status", "account_state"]
+        },
+        "segment_context": {
+          "segment_name": "Account Management",
+          "segment_description": "Manages customer account information"
+        }
+      }
+    ],
+    "selected_asset_columns": [
+      {
+        "column_name": "credit_score",
+        "data_type": "Numeric",
+        "description": "Customer credit score",
+        "asset_name": "Consumer Credit Database",
+        "workspace_name": "Credit Analytics Workspace",
+        "big_query_table_name": "credit_analytics.consumer_credit_data"
+      },
+      {
+        "column_name": "customer_id",
+        "data_type": "String",
+        "description": "Unique customer identifier",
+        "asset_name": "Customer Database",
+        "workspace_name": "Customer Management",
+        "big_query_table_name": "customer_mgmt.customers"
+      },
+      {
+        "column_name": "risk_rating",
+        "data_type": "String",
+        "description": "Customer risk rating",
+        "asset_name": "Risk Assessment Database",
+        "workspace_name": "Risk Management",
+        "big_query_table_name": "risk_mgmt.assessments"
+      },
+      {
+        "column_name": "transaction_amount",
+        "data_type": "Numeric",
+        "description": "Transaction amount",
+        "asset_name": "Transaction Database",
+        "workspace_name": "Transaction Processing",
+        "big_query_table_name": "transactions.processed"
+      }
+    ]
+  }'
+```
+
+### Test 3: Complex Business Scenario
+
+```bash
+curl -X POST "http://localhost:8000/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Extract entities from the BC3 fields and create meaningful business entities",
+    "session_id": "test_complex_001",
+    "selected_bc3_fields": [
+      {
+        "field": {
+          "field_name": "loan_amount",
+          "description": "Total loan amount approved",
+          "data_type": "numeric",
+          "valid_values": ["positive numbers"],
+          "notes": "Includes principal and fees",
+          "known_implementations": ["loan_amount", "principal_amount"]
+        },
+        "segment_context": {
+          "segment_name": "Loan Management",
+          "segment_description": "Manages loan origination and servicing"
+        }
+      },
+      {
+        "field": {
+          "field_name": "interest_rate",
+          "description": "Annual interest rate for the loan",
+          "data_type": "numeric",
+          "valid_values": ["percentage values"],
+          "notes": "Fixed or variable rate",
+          "known_implementations": ["interest_rate", "apr"]
+        },
+        "segment_context": {
+          "segment_name": "Loan Management",
+          "segment_description": "Manages loan origination and servicing"
+        }
+      },
+      {
+        "field": {
+          "field_name": "collateral_value",
+          "description": "Estimated value of collateral",
+          "data_type": "numeric",
+          "valid_values": ["positive numbers"],
+          "notes": "Appraised value",
+          "known_implementations": ["collateral_value", "appraised_value"]
+        },
+        "segment_context": {
+          "segment_name": "Collateral Management",
+          "segment_description": "Manages collateral valuation and monitoring"
+        }
+      }
+    ],
+    "selected_asset_columns": [
+      {
+        "column_name": "borrower_id",
+        "data_type": "String",
+        "description": "Unique borrower identifier",
+        "asset_name": "Borrower Database",
+        "workspace_name": "Borrower Management",
+        "big_query_table_name": "borrowers.profiles"
+      },
+      {
+        "column_name": "employment_status",
+        "data_type": "String",
+        "description": "Current employment status",
+        "asset_name": "Employment Database",
+        "workspace_name": "Employment Verification",
+        "big_query_table_name": "employment.verification"
+      },
+      {
+        "column_name": "income_amount",
+        "data_type": "Numeric",
+        "description": "Annual income amount",
+        "asset_name": "Income Database",
+        "workspace_name": "Income Verification",
+        "big_query_table_name": "income.verification"
+      },
+      {
+        "column_name": "debt_to_income_ratio",
+        "data_type": "Numeric",
+        "description": "Debt to income ratio",
+        "asset_name": "Financial Ratios Database",
+        "workspace_name": "Financial Analysis",
+        "big_query_table_name": "ratios.financial"
+      }
+    ]
+  }'
+```
+
+## CRUD Operations Examples
+
+### Create Entity
+
+```bash
+curl -X POST "http://localhost:8000/entities" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "test_crud_001",
+    "entity_name": "Customer Profile",
+    "entity_type": "business_metric",
+    "entity_value": "Customer profile information",
+    "description": "A comprehensive customer profile with personal and financial information",
+    "attributes": [
+      {
+        "attribute_name": "Customer Name",
+        "attribute_value": "John Doe",
+        "attribute_type": "string",
+        "description": "Full name of the customer"
+      },
+      {
+        "attribute_name": "Age",
+        "attribute_value": "35",
+        "attribute_type": "numeric",
+        "description": "Age of the customer"
+      }
+    ]
+  }'
+```
+
+### Read Entities
+
+```bash
+curl "http://localhost:8000/entities?session_id=test_crud_001"
+```
+
+### Update Entity
+
+```bash
+curl -X PUT "http://localhost:8000/entities" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "test_crud_001",
+    "entity_id": "entity_990434f1",
+    "entity_name": "Updated Customer Profile",
+    "description": "Updated description for the customer profile"
+  }'
+```
+
+### Delete Entity
+
+```bash
+curl -X DELETE "http://localhost:8000/entities" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "test_crud_001",
+    "entity_id": "entity_990434f1"
+  }'
+```
+
+### Read Attributes
+
+```bash
+curl "http://localhost:8000/entities/entity_990434f1/attributes?session_id=test_crud_001"
+```
+
+### Delete Attribute
+
+```bash
+curl -X DELETE "http://localhost:8000/entities/entity_990434f1/attributes/attr_b0caf65a" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "test_crud_001",
+    "entity_id": "entity_990434f1",
+    "attribute_id": "attr_b0caf65a"
+  }'
+```
+
+## Entity Structure
+
+The agent creates entities following this hierarchical structure:
+
+```
+Entity (Main Business Concept)
+├── Attribute 1
+├── Attribute 2  
+├── Attribute 3
+└── Attribute N
+```
+
+### Example Output
+
+```json
+{
+  "entities_created": 2,
+  "entities": [
+    {
+      "entity_name": "Credit Account",
+      "entity_type": "asset",
+      "description": "Represents a credit account with its associated attributes",
+      "attributes": [
+        {
+          "attribute_name": "Account ID",
+          "attribute_value": "Unique identifier for the credit account",
+          "attribute_type": "string"
+        },
+        {
+          "attribute_name": "Credit Limit",
+          "attribute_value": "Maximum credit amount allowed",
+          "attribute_type": "numeric"
+        },
+        {
+          "attribute_name": "Account Status",
+          "attribute_value": "Current status of the account",
+          "attribute_type": "string"
+        }
+      ]
+    },
+    {
+      "entity_name": "Customer Profile",
+      "entity_type": "asset",
+      "description": "Represents a customer with their associated attributes",
+      "attributes": [
+        {
+          "attribute_name": "Customer ID",
+          "attribute_value": "Unique customer identifier",
+          "attribute_type": "string"
+        },
+        {
+          "attribute_name": "Credit Score",
+          "attribute_value": "Customer credit score",
+          "attribute_type": "numeric"
+        },
+        {
+          "attribute_name": "Risk Rating",
+          "attribute_value": "Customer risk rating",
+          "attribute_type": "string"
+        }
+      ]
     }
-  }
-};
-</script>
+  ]
+}
 ```
 
-## 🔧 Configuration
+## Utilities
 
-### **Environment Variables**
+### Clear Firestore Collections
+
 ```bash
-# Google Cloud
-GOOGLE_CLOUD_PROJECT=your-project-id
-GOOGLE_CLOUD_LOCATION=us-central1
+# Dry run to see what would be deleted
+python3 clear_firestore_sessions.py --dry-run
 
-# LLM Settings
-LLM_MODEL_NAME=gemini-2.5-flash-lite
-LLM_TEMPERATURE=0.1
-LLM_MAX_OUTPUT_TOKENS=2048
+# Clear both collections with confirmation
+python3 clear_firestore_sessions.py
 
-# Session Management
-SESSION_MANAGER_TYPE=memory  # Options: memory, firestore, redis, mongodb
+# Clear only custom_entities collection
+python3 clear_firestore_sessions.py --collections custom_entities
+
+# Clear without confirmation (use with caution)
+python3 clear_firestore_sessions.py --confirm
 ```
 
-### **Session Manager Types**
-- **memory**: Fast, in-memory storage (default, good for development)
-- **firestore**: Google Cloud Firestore (good for production)
+## What We Learned
 
-## 🎯 Use Cases
+The original complex architecture with:
+- 6 different tools
+- LangGraph workflows
+- Multiple abstraction layers
+- Complex state management
 
-### **1. Credit Risk Assessment**
-- **Input**: Credit scores, debt levels, account balances
-- **Output**: Risk scores, utilization ratios, alert thresholds
+**Was causing the LLM to fail at tool calling.**
 
-### **2. Customer Segmentation**
-- **Input**: Purchase history, demographics, behavior data
-- **Output**: Customer tiers, loyalty scores, churn risk
+The current approach with:
+- 1 tool for extraction
+- Full CRUD operations for management
+- Direct LLM interaction
+- Modular structure
+- Entity-Attribute hierarchy
+- Clean API design
 
-### **3. Fraud Detection**
-- **Input**: Transaction patterns, account behavior, location data
-- **Output**: Risk indicators, anomaly scores, alert rules
+**Works perfectly!** 
 
-### **4. Business Intelligence**
-- **Input**: Sales data, customer data, operational metrics
-- **Output**: Performance indicators, trend analysis, predictive insights
+## Current Status
 
-## 🚀 Deployment
-
-### **Local Development**
-```bash
-python main.py --port 8001
-```
-
-### **Production Deployment**
-```bash
-# Using Gunicorn
-gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8001
-
-# Using Docker
-docker build -t entity-agent .
-docker run -p 8001:8001 entity-agent
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 🆘 Support
-
-- **Documentation**: Check this README
-- **Issues**: Create a GitHub issue
-- **Questions**: Check the examples above
-
----
-
-**Happy Entity Extraction! 🎉**
+✅ **Fully Functional**: All CRUD operations working
+✅ **Modular**: Clean separation of concerns
+✅ **Tested**: Comprehensive test coverage
+✅ **Documented**: Complete API documentation
+✅ **Production Ready**: Stable and reliable

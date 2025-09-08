@@ -1,44 +1,61 @@
-# BC3 AI Agent - Entity Extraction and Management
+# BC3 AI Agent - Conversational Entity Extraction and Management
 
-A comprehensive entity extraction and management agent for BC3 (Credit Domain) data and data assets with full CRUD operations.
+A comprehensive conversational AI agent for BC3 (Credit Domain) data and data assets with natural language entity building, full CRUD operations, and intelligent session management.
 
 ## Architecture
 
-**Modular & Clean:**
+**Modular & Conversational:**
 - `main.py` - FastAPI server entry point (23 lines)
-- `routers.py` - All API endpoints with CRUD operations (269 lines)
+- `routers.py` - All API endpoints with CRUD and conversation operations (376 lines)
 - `models.py` - Pydantic models for API requests/responses (95 lines)
 - `agent.py` - Core agent logic (122 lines)
-- `config.py` - Configuration settings (47 lines)
+- `conversational_agent.py` - Natural language processing and intent recognition (398 lines)
+- `chat_session_manager.py` - Conversation history and session management (221 lines)
+- `config.py` - Configuration settings (53 lines)
 - `tools.py` - LangChain tools (68 lines)
 - `prompts.py` - System prompts (88 lines)
-- `entity_collection_manager.py` - Firestore operations (432 lines)
+- `entity_collection_manager.py` - Firestore operations (436 lines)
 - `entity_collection_models.py` - Data models (140 lines)
 
 ## Features
 
-- ✅ **Entity Extraction**: `create_entities` tool - extracts and saves entities
+- ✅ **Conversational Interface**: Natural language entity building through chat
+- ✅ **Intent Recognition**: Understands extract, create, list, update, delete, help commands
+- ✅ **Session Management**: Persistent conversation history and context tracking
+- ✅ **Entity Extraction**: `create_entities` tool - extracts and saves entities from BC3/asset data
 - ✅ **Full CRUD Operations**: Create, Read, Update, Delete entities and attributes
-- ✅ **Direct LLM Interaction**: No complex workflows
-- ✅ **Firestore Integration**: Saves entities to `custom_entities` collection
+- ✅ **Direct LLM Interaction**: No complex workflows, direct Vertex AI integration
+- ✅ **Firestore Integration**: Saves entities to `llmops-demo-track2` database
 - ✅ **RESTful API**: Complete set of endpoints for entity management
-- ✅ **Configurable**: Environment variables and config.py
-- ✅ **Modular**: Separated concerns (models, routers, config, tools, prompts)
+- ✅ **Configuration Constants**: Centralized config management, no hardcoded values
+- ✅ **Modular Design**: Separated concerns (models, routers, config, tools, prompts)
 - ✅ **Entity-Attribute Structure**: Creates meaningful business entities with multiple attributes
-- ✅ **No Emojis**: Clean logging and responses
+- ✅ **Clean Logging**: Professional logging without emojis
 
 ## Configuration
 
 All settings are managed in `config.py`:
 
-- **Google Cloud**: Project ID, location
+- **Google Cloud**: Project ID, location, database ID
 - **LLM**: Model name, temperature, max tokens
-- **Firestore**: Collection names
+- **Firestore**: Collection names, database configuration
 - **API**: Host, port
 
-Override with environment variables:
+### Default Configuration:
+```python
+PROJECT_ID = "firestore-470903"
+DATABASE_ID = "llmops-demo-track2"
+MODEL_NAME = "gemini-2.5-pro"
+TEMPERATURE = 0
+MAX_OUTPUT_TOKENS = 64000
+FIRESTORE_COLLECTION_CUSTOM_ENTITIES = "custom_entities"
+FIRESTORE_COLLECTION_CHAT_SESSIONS = "chat_sessions"
+```
+
+### Environment Variable Overrides:
 ```bash
 export GOOGLE_CLOUD_PROJECT="your-project-id"
+export FIRESTORE_DATABASE_ID="your-database-id"
 export LLM_MODEL_NAME="gemini-2.5-pro"
 export LLM_TEMPERATURE="0"
 export LLM_MAX_OUTPUT_TOKENS="64000"
@@ -82,11 +99,16 @@ export LLM_MAX_OUTPUT_TOKENS="64000"
 
 ## API Documentation
 
-### Chat Endpoint
+### Conversational Endpoints
 
-**POST** `/chat`
+**POST** `/conversation` - Main conversational interface for natural language entity building
+**GET** `/conversation/{session_id}/history` - Get conversation history
+**GET** `/conversation/{session_id}/summary` - Get session summary
+**POST** `/conversation/{session_id}/context` - Update session context
 
-Extract entities from BC3 fields and asset columns, creating meaningful business entities with attributes.
+### Traditional Chat Endpoint
+
+**POST** `/chat` - Extract entities from BC3 fields and asset columns
 
 ### Entity CRUD Operations
 
@@ -101,6 +123,10 @@ Extract entities from BC3 fields and asset columns, creating meaningful business
 **POST** `/entities/{entity_id}/attributes` - Create new attribute
 **PUT** `/entities/{entity_id}/attributes/{attribute_id}` - Update attribute
 **DELETE** `/entities/{entity_id}/attributes/{attribute_id}` - Delete attribute
+
+### Health Check
+
+**GET** `/health` - Server health status
 
 #### Request Body
 
@@ -400,6 +426,89 @@ curl -X POST "http://localhost:8000/chat" \
   }'
 ```
 
+## Conversational Agent Examples
+
+### Natural Language Entity Building
+
+The conversational agent understands natural language and can build entities through chat:
+
+#### Help and Guidance
+```bash
+curl -X POST "http://localhost:8000/conversation" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Help me understand what you can do",
+    "session_id": "demo_001"
+  }'
+```
+
+#### Create Entities Through Conversation
+```bash
+curl -X POST "http://localhost:8000/conversation" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Create a customer entity with name, email, and phone number attributes",
+    "session_id": "demo_002"
+  }'
+```
+
+#### List Created Entities
+```bash
+curl -X POST "http://localhost:8000/conversation" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Show me all the entities I have created",
+    "session_id": "demo_002"
+  }'
+```
+
+#### Extract from Data with Context
+```bash
+curl -X POST "http://localhost:8000/conversation" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Extract entities from my BC3 fields and asset columns",
+    "session_id": "demo_003",
+    "selected_bc3_fields": [
+      {
+        "field": {
+          "field_name": "account_number",
+          "description": "Unique account identifier",
+          "data_type": "string"
+        },
+        "segment_context": {
+          "segment_name": "Account Management"
+        }
+      }
+    ],
+    "selected_asset_columns": [
+      {
+        "column_name": "credit_score",
+        "data_type": "Numeric",
+        "description": "Customer credit score"
+      }
+    ]
+  }'
+```
+
+#### Conversation History
+```bash
+curl "http://localhost:8000/conversation/demo_002/history"
+```
+
+#### Session Summary
+```bash
+curl "http://localhost:8000/conversation/demo_002/summary"
+```
+
+### Supported Natural Language Commands
+
+- **Help**: "Help me understand what you can do"
+- **Create**: "Create a [entity] with [attributes]"
+- **List**: "Show me my entities", "List all entities"
+- **Extract**: "Extract entities from my data"
+- **General**: Any natural language conversation about entities
+
 ## CRUD Operations Examples
 
 ### Create Entity
@@ -572,20 +681,35 @@ The original complex architecture with:
 
 **Was causing the LLM to fail at tool calling.**
 
-The current approach with:
-- 1 tool for extraction
-- Full CRUD operations for management
-- Direct LLM interaction
-- Modular structure
+The current conversational approach with:
+- Natural language interface
+- Intent recognition and session management
+- 1 tool for extraction + full CRUD operations
+- Direct LLM interaction with Vertex AI
+- Modular structure with configuration constants
 - Entity-Attribute hierarchy
-- Clean API design
+- Clean API design with conversation endpoints
 
 **Works perfectly!** 
 
 ## Current Status
 
+✅ **Conversational Interface**: Natural language entity building
+✅ **Session Management**: Persistent conversation history
+✅ **Intent Recognition**: Understands user commands
 ✅ **Fully Functional**: All CRUD operations working
+✅ **Database Integration**: Using llmops-demo-track2 database
+✅ **Configuration Constants**: No hardcoded values
 ✅ **Modular**: Clean separation of concerns
 ✅ **Tested**: Comprehensive test coverage
 ✅ **Documented**: Complete API documentation
 ✅ **Production Ready**: Stable and reliable
+
+## Key Innovations
+
+1. **Conversational Entity Building**: Users can build entities through natural language
+2. **Intent Recognition**: AI understands what users want to do
+3. **Session Persistence**: Maintains conversation context and history
+4. **Dual Interface**: Both conversational and traditional API endpoints
+5. **Configuration Management**: Centralized, environment-variable driven
+6. **Database Isolation**: Dedicated database for entity storage

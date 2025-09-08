@@ -92,7 +92,7 @@ class SimpleAgent:
                                 "entities_created": result['total_created'],
                                 "entities": result['entities']
                             }
-                        else:
+            else:
                             logger.error(f"Tool failed: {result['message']}")
                             return {
                                 "response": f"Error: {result['message']}",

@@ -305,6 +305,8 @@ async def conversation(request: ChatRequest):
     try:
         logger.info(f"Conversation request received - Session: {request.session_id}")
         logger.info(f"Message: {request.message}")
+        logger.info(f"BC3 fields: {len(request.selected_bc3_fields)}")
+        logger.info(f"Asset columns: {len(request.selected_asset_columns)}")
         
         # Process with conversational agent
         result = conversational_agent.process_message(

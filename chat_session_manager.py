@@ -90,11 +90,11 @@ class ChatSessionManager:
                 data = doc.to_dict()
                 # Convert Firestore timestamps back to datetime
                 for message in data.get('messages', []):
-                    if 'timestamp' in message:
+                    if 'timestamp' in message and hasattr(message['timestamp'], 'to_pydatetime'):
                         message['timestamp'] = message['timestamp'].to_pydatetime()
-                if 'created_at' in data:
+                if 'created_at' in data and hasattr(data['created_at'], 'to_pydatetime'):
                     data['created_at'] = data['created_at'].to_pydatetime()
-                if 'updated_at' in data:
+                if 'updated_at' in data and hasattr(data['updated_at'], 'to_pydatetime'):
                     data['updated_at'] = data['updated_at'].to_pydatetime()
                 
                 return ChatSession(**data)

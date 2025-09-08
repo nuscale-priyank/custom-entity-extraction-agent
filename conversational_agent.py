@@ -78,7 +78,7 @@ class ConversationalAgent:
             
             # Process based on intent
             if intent == "extract_entities":
-                response = self._handle_entity_extraction(session_id, user_message, session)
+                response = self._handle_entity_extraction(session_id, user_message, session, selected_bc3_fields, selected_asset_columns)
             elif intent == "create_entity":
                 response = self._handle_entity_creation(session_id, user_message, session)
             elif intent == "list_entities":
@@ -129,13 +129,13 @@ class ConversationalAgent:
         else:
             return "general_conversation"
     
-    def _handle_entity_extraction(self, session_id: str, message: str, session) -> Dict[str, Any]:
+    def _handle_entity_extraction(self, session_id: str, message: str, session, selected_bc3_fields: List[Dict] = None, selected_asset_columns: List[Dict] = None) -> Dict[str, Any]:
         """Handle entity extraction from BC3 fields and asset columns"""
         
         try:
-            # Check if we have data to extract from
-            bc3_fields = session.context.get('selected_bc3_fields', [])
-            asset_columns = session.context.get('selected_asset_columns', [])
+            # Use the BC3 fields and asset columns passed directly, or fall back to session context
+            bc3_fields = selected_bc3_fields or (session.context.get('selected_bc3_fields', []) if session else [])
+            asset_columns = selected_asset_columns or (session.context.get('selected_asset_columns', []) if session else [])
             
             if not bc3_fields and not asset_columns:
                 return {

@@ -276,12 +276,98 @@ class ConversationalAgent:
     def _handle_entity_deletion(self, session_id: str, message: str, session) -> Dict[str, Any]:
         """Handle entity deletion through conversation"""
         
-        return {
-            "response": "Entity deletion through conversation is not yet implemented. You can use the API endpoints for now.",
-            "success": False,
-            "entities_created": 0,
-            "entities": []
-        }
+        try:
+            from entity_collection_models import ReadEntityRequest, DeleteEntityRequest
+            
+            # First, get all entities to help identify which one to delete
+            read_request = ReadEntityRequest(session_id=session_id)
+            read_result = self.entity_manager.read_entities(read_request)
+            
+            if not read_result.success or not read_result.entities:
+                return {
+                    "response": "I don't see any entities in this session to delete. Would you like to create some first?",
+                    "success": False,
+                    "entities_created": 0,
+                    "entities": []
+                }
+            
+            # Use LLM to understand which entity the user wants to delete
+            entity_list = []
+            for entity in read_result.entities:
+                entity_list.append(f"- {entity.entity_name} (ID: {entity.entity_id}) - {entity.description}")
+            
+            prompt = f"""
+The user wants to delete an entity. They said: "{message}"
+
+Available entities in this session:
+{chr(10).join(entity_list)}
+
+Based on their request, identify which entity they want to delete. Return the entity_id of the entity to delete, or "none" if you can't determine which one.
+
+Return only the entity_id or "none", no other text.
+            """
+            
+            response = self.llm.invoke(prompt)
+            entity_id_to_delete = response.content.strip().strip('"').strip("'")
+            
+            if entity_id_to_delete.lower() == "none" or not entity_id_to_delete:
+                return {
+                    "response": f"I'm not sure which entity you want to delete. Here are the available entities:\n\n{chr(10).join(entity_list)}\n\nPlease specify which entity you'd like to delete by name or ID.",
+                    "success": False,
+                    "entities_created": 0,
+                    "entities": []
+                }
+            
+            # Verify the entity exists
+            target_entity = None
+            for entity in read_result.entities:
+                if entity.entity_id == entity_id_to_delete or entity.entity_name.lower() == entity_id_to_delete.lower():
+                    target_entity = entity
+                    entity_id_to_delete = entity.entity_id  # Use the actual entity_id
+                    break
+            
+            if not target_entity:
+                return {
+                    "response": f"I couldn't find an entity matching '{entity_id_to_delete}'. Here are the available entities:\n\n{chr(10).join(entity_list)}",
+                    "success": False,
+                    "entities_created": 0,
+                    "entities": []
+                }
+            
+            # Delete the entity
+            delete_request = DeleteEntityRequest(
+                session_id=session_id,
+                entity_id=entity_id_to_delete
+            )
+            
+            delete_result = self.entity_manager.delete_entities(delete_request)
+            
+            if delete_result.success:
+                # Remove from session tracking
+                self.chat_manager.remove_created_entity(session_id, entity_id_to_delete)
+                
+                return {
+                    "response": f"✅ Successfully deleted the entity '{target_entity.entity_name}' (ID: {entity_id_to_delete}).",
+                    "success": True,
+                    "entities_created": 0,
+                    "entities": []
+                }
+            else:
+                return {
+                    "response": f"I had trouble deleting the entity: {delete_result.message}",
+                    "success": False,
+                    "entities_created": 0,
+                    "entities": []
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in entity deletion: {e}")
+            return {
+                "response": f"I encountered an error while deleting the entity: {str(e)}",
+                "success": False,
+                "entities_created": 0,
+                "entities": []
+            }
     
     def _handle_help_request(self) -> Dict[str, Any]:
         """Handle help requests"""

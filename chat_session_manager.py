@@ -183,6 +183,30 @@ class ChatSessionManager:
             logger.error(f"Error adding entity to session: {e}")
             return False
     
+    def remove_created_entity(self, session_id: str, entity_id: str) -> bool:
+        """Remove an entity ID from the list of created entities"""
+        try:
+            session = self.get_session(session_id)
+            if not session:
+                logger.warning(f"Session {session_id} not found")
+                return False
+            
+            if entity_id in session.entities_created:
+                session.entities_created.remove(entity_id)
+                session.updated_at = datetime.utcnow()
+                
+                # Save to Firestore
+                doc_ref = self.collection.document(session_id)
+                doc_ref.set(session.model_dump(mode='json'))
+                
+                logger.info(f"Removed entity {entity_id} from session {session_id}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error removing entity from session: {e}")
+            return False
+    
     def get_conversation_history(self, session_id: str, limit: int = 10) -> List[ChatMessage]:
         """Get recent conversation history"""
         try:

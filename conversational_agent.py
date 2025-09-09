@@ -257,17 +257,35 @@ class ConversationalAgent:
                 message += f"• **Entities with Relationships:** {entities_with_relationships}\n"
                 message += f"• **Total Relationships:** {total_relationships}\n\n"
                 
-                if len(result.entities) <= 5:
-                    message += f"📋 **Entity List:**\n"
-                    for entity in result.entities:
-                        message += f"• {entity.entity_name} ({entity.entity_type.value})\n"
-                else:
-                    message += f"📋 **Entity List:** (showing first 5)\n"
-                    for entity in result.entities[:5]:
-                        message += f"• {entity.entity_name} ({entity.entity_type.value})\n"
-                    message += f"• ... and {len(result.entities) - 5} more\n"
+                # Detailed entity information
+                message += f"📋 **Detailed Entity Information:**\n\n"
+                for i, entity in enumerate(result.entities, 1):
+                    message += f"**{i}. {entity.entity_name}** ({entity.entity_type.value})\n"
+                    message += f"   • **Description:** {entity.description}\n"
+                    message += f"   • **Confidence:** {entity.confidence:.2f}\n"
+                    message += f"   • **Source Fields:** {entity.source_field}\n\n"
+                    
+                    # List attributes
+                    if entity.attributes:
+                        message += f"   **Attributes ({len(entity.attributes)}):**\n"
+                        for attr in entity.attributes:
+                            message += f"   • {attr.attribute_name} ({attr.attribute_type}): {attr.attribute_value}\n"
+                        message += "\n"
+                    
+                    # List relationships
+                    if entity.relationships:
+                        message += f"   **Relationships ({len(entity.relationships)}):**\n"
+                        for target_entity_id, rel_data in entity.relationships.items():
+                            target_entity = next((e for e in result.entities if e.entity_id == target_entity_id), None)
+                            if target_entity:
+                                for rel in rel_data.get('relationships', []):
+                                    rel_type = rel["type"].replace("_", " ").title()
+                                    message += f"   • → {rel_type} → {target_entity.entity_name} (confidence: {rel.get('confidence', 0):.2f})\n"
+                        message += "\n"
+                    else:
+                        message += f"   **Relationships:** None\n\n"
                 
-                message += f"\n💡 **Next Steps:**\n"
+                message += f"💡 **Next Steps:**\n"
                 message += f"Please view the detailed entities and relationships in the **Entity Management** section at the top of your screen."
             else:
                 message = f"📊 **Entity Summary**\n\n"
@@ -440,25 +458,45 @@ Return only the entity_id or "none", no other text.
                 # Count relationships found
                 total_relationships = sum(len(rel_list) for rel_list in relationships.values())
                 
-                # Create concise summary
+                # Create detailed summary
                 chat_output = f"✅ **Relationship Analysis Complete**\n\n"
                 chat_output += f"📊 **Summary:**\n"
                 chat_output += f"• **Entities Analyzed:** {len(read_result.entities)}\n"
                 chat_output += f"• **Relationships Found:** {total_relationships}\n\n"
-                chat_output += f"🔗 **Key Relationships:**\n"
                 
-                # Add key relationships
+                # List all entities with their details
+                chat_output += f"📋 **Entities in Session:**\n\n"
+                for i, entity in enumerate(read_result.entities, 1):
+                    chat_output += f"**{i}. {entity.entity_name}** ({entity.entity_type.value})\n"
+                    chat_output += f"   • **Description:** {entity.description}\n"
+                    chat_output += f"   • **Attributes:** {len(entity.attributes)} attributes\n"
+                    if entity.attributes:
+                        for attr in entity.attributes[:3]:  # Show first 3 attributes
+                            chat_output += f"     - {attr.attribute_name}: {attr.attribute_value}\n"
+                        if len(entity.attributes) > 3:
+                            chat_output += f"     - ... and {len(entity.attributes) - 3} more\n"
+                    chat_output += "\n"
+                
+                # Add detailed relationships
+                chat_output += f"🔗 **Detailed Relationships:**\n\n"
                 for entity_id, entity_rels in relationships.items():
                     entity = next((e for e in read_result.entities if e.entity_id == entity_id), None)
                     if entity:
+                        chat_output += f"**{entity.entity_name}** relationships:\n"
                         for target_entity_id, rel_list in entity_rels.items():
                             target_entity = next((e for e in read_result.entities if e.entity_id == target_entity_id), None)
                             if target_entity:
                                 for rel in rel_list:
                                     rel_type = rel["type"].replace("_", " ").title()
-                                    chat_output += f"• {entity.entity_name} → {rel_type} → {target_entity.entity_name}\n"
+                                    confidence = rel.get('confidence', 0)
+                                    description = rel.get('description', '')
+                                    chat_output += f"   • → **{rel_type}** → {target_entity.entity_name}\n"
+                                    chat_output += f"     Confidence: {confidence:.2f}\n"
+                                    if description:
+                                        chat_output += f"     Description: {description}\n"
+                        chat_output += "\n"
                 
-                chat_output += f"\n💡 **Next Steps:**\n"
+                chat_output += f"💡 **Next Steps:**\n"
                 chat_output += f"Please view the detailed entities and relationships in the **Entity Management** section at the top of your screen."
                 
                 return {
@@ -638,6 +676,33 @@ Return only the JSON, no other text.
                     enhanced_response += f"• **Entities Created:** {result.get('entities_created', 0)}\n"
                     enhanced_response += f"• **Total Entities in Session:** {len(read_result.entities)}\n"
                     enhanced_response += f"• **Relationships Detected:** {total_relationships}\n\n"
+                    
+                    # Add entity details
+                    enhanced_response += f"📋 **Created Entities:**\n\n"
+                    for i, entity in enumerate(read_result.entities, 1):
+                        enhanced_response += f"**{i}. {entity.entity_name}** ({entity.entity_type.value})\n"
+                        enhanced_response += f"   • **Description:** {entity.description}\n"
+                        enhanced_response += f"   • **Attributes:** {len(entity.attributes)} attributes\n"
+                        if entity.attributes:
+                            for attr in entity.attributes[:2]:  # Show first 2 attributes
+                                enhanced_response += f"     - {attr.attribute_name}: {attr.attribute_value}\n"
+                            if len(entity.attributes) > 2:
+                                enhanced_response += f"     - ... and {len(entity.attributes) - 2} more\n"
+                        enhanced_response += "\n"
+                    
+                    # Add relationship details
+                    enhanced_response += f"🔗 **Detected Relationships:**\n\n"
+                    for entity_id, entity_rels in relationships.items():
+                        entity = next((e for e in read_result.entities if e.entity_id == entity_id), None)
+                        if entity:
+                            for target_entity_id, rel_list in entity_rels.items():
+                                target_entity = next((e for e in read_result.entities if e.entity_id == target_entity_id), None)
+                                if target_entity:
+                                    for rel in rel_list:
+                                        rel_type = rel["type"].replace("_", " ").title()
+                                        enhanced_response += f"• {entity.entity_name} → **{rel_type}** → {target_entity.entity_name}\n"
+                    enhanced_response += "\n"
+                    
                     enhanced_response += f"💡 **Next Steps:**\n"
                     enhanced_response += f"Please view the detailed entities and relationships in the **Entity Management** section at the top of your screen."
                     

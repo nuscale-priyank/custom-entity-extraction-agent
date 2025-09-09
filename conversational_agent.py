@@ -664,38 +664,59 @@ Return only the JSON, no other text.
             read_request = ReadEntityRequest(session_id=session_id)
             read_result = self.entity_manager.read_entities(read_request)
             
-            if read_result.success and len(read_result.entities) > 1:
-                # Detect relationships
-                relationships = self.relationship_detector.detect_relationships(read_result.entities)
+            if read_result.success and read_result.entities:
+                # Detect relationships if there are multiple entities
+                relationships = None
+                if len(read_result.entities) > 1:
+                    relationships = self.relationship_detector.detect_relationships(read_result.entities)
+                
+                # Create enhanced response with detailed entity information
+                original_response = result.get('response', '')
+                
+                enhanced_response = f"{original_response}\n\n"
+                enhanced_response += f"📊 **Entity Extraction Summary:**\n"
+                enhanced_response += f"• **Entities Created:** {result.get('entities_created', 0)}\n"
+                enhanced_response += f"• **Total Entities in Session:** {len(read_result.entities)}\n"
                 
                 if relationships:
-                    # Count relationships found
                     total_relationships = sum(len(rel_list) for rel_list in relationships.values())
+                    enhanced_response += f"• **Relationships Detected:** {total_relationships}\n"
+                else:
+                    enhanced_response += f"• **Relationships Detected:** 0\n"
+                
+                enhanced_response += "\n"
+                
+                # Add detailed entity information
+                enhanced_response += f"📋 **Created Entities:**\n\n"
+                for i, entity in enumerate(read_result.entities, 1):
+                    enhanced_response += f"**{i}. {entity.entity_name}** ({entity.entity_type.value})\n"
+                    enhanced_response += f"   • **Description:** {entity.description}\n"
+                    enhanced_response += f"   • **Confidence:** {entity.confidence:.2f}\n"
+                    enhanced_response += f"   • **Source Fields:** {entity.source_field}\n\n"
                     
-                    # Create enhanced response
-                    original_response = result.get('response', '')
-                    
-                    enhanced_response = f"{original_response}\n\n"
-                    enhanced_response += f"🔗 **Relationship Analysis:**\n"
-                    enhanced_response += f"• **Entities Created:** {result.get('entities_created', 0)}\n"
-                    enhanced_response += f"• **Total Entities in Session:** {len(read_result.entities)}\n"
-                    enhanced_response += f"• **Relationships Detected:** {total_relationships}\n\n"
-                    
-                    # Add entity details
-                    enhanced_response += f"📋 **Created Entities:**\n\n"
-                    for i, entity in enumerate(read_result.entities, 1):
-                        enhanced_response += f"**{i}. {entity.entity_name}** ({entity.entity_type.value})\n"
-                        enhanced_response += f"   • **Description:** {entity.description}\n"
-                        enhanced_response += f"   • **Attributes:** {len(entity.attributes)} attributes\n"
-                        if entity.attributes:
-                            for attr in entity.attributes[:2]:  # Show first 2 attributes
-                                attr_value = str(attr.attribute_value) if attr.attribute_value is not None else "None"
-                                enhanced_response += f"     - {attr.attribute_name}: {attr_value}\n"
-                            if len(entity.attributes) > 2:
-                                enhanced_response += f"     - ... and {len(entity.attributes) - 2} more\n"
+                    # List all attributes
+                    if entity.attributes:
+                        enhanced_response += f"   **Attributes ({len(entity.attributes)}):**\n"
+                        for attr in entity.attributes:
+                            attr_value = str(attr.attribute_value) if attr.attribute_value is not None else "None"
+                            enhanced_response += f"   • {attr.attribute_name} ({attr.attribute_type}): {attr_value}\n"
                         enhanced_response += "\n"
                     
-                    # Add relationship details
+                    # List relationships if they exist
+                    if entity.relationships:
+                        enhanced_response += f"   **Relationships ({len(entity.relationships)}):**\n"
+                        for target_entity_id, rel_data in entity.relationships.items():
+                            target_entity = next((e for e in read_result.entities if e.entity_id == target_entity_id), None)
+                            if target_entity:
+                                for rel in rel_data.get('relationships', []):
+                                    rel_type = rel["type"].replace("_", " ").title()
+                                    enhanced_response += f"   • → {rel_type} → {target_entity.entity_name} (confidence: {rel.get('confidence', 0):.2f})\n"
+                        enhanced_response += "\n"
+                    else:
+                        enhanced_response += f"   **Relationships:** None\n\n"
+                
+                # Add relationship details if any were detected
+                if relationships:
                     enhanced_response += f"🔗 **Detected Relationships:**\n\n"
                     for entity_id, entity_rels in relationships.items():
                         entity = next((e for e in read_result.entities if e.entity_id == entity_id), None)
@@ -707,12 +728,12 @@ Return only the JSON, no other text.
                                         rel_type = rel["type"].replace("_", " ").title()
                                         enhanced_response += f"• {entity.entity_name} → **{rel_type}** → {target_entity.entity_name}\n"
                     enhanced_response += "\n"
-                    
-                    enhanced_response += f"💡 **Next Steps:**\n"
-                    enhanced_response += f"Please view the detailed entities and relationships in the **Entity Management** section at the top of your screen."
-                    
-                    result['response'] = enhanced_response
-                    logger.info("Enhanced response with relationship information")
+                
+                enhanced_response += f"💡 **Next Steps:**\n"
+                enhanced_response += f"Click on the **Entity Management** button for more insights into the entities that were created."
+                
+                result['response'] = enhanced_response
+                logger.info("Enhanced response with detailed entity information")
             
             return result
             

@@ -81,12 +81,12 @@ def get_context_prompt(bc3_fields: list = None, asset_columns: list = None) -> s
         for i, column_data in enumerate(asset_columns, 1):
             # Get asset context information
             asset_context = column_data.get('asset_context', {})
-            asset_name = asset_context.get('asset_name', 'Unknown')
+            asset_name = asset_context.get('asset_name', 'General Asset')
             
             # Concise format with asset context
-            column_name = column_data.get('column_name', 'Unknown')
-            data_type = column_data.get('data_type', 'Unknown')
-            description = column_data.get('description', 'No description')
+            column_name = column_data.get('column_name', f'Column_{i}')
+            data_type = column_data.get('data_type', 'string')
+            description = column_data.get('description', 'No description available')
             
             # Truncate long descriptions
             if len(description) > 50:

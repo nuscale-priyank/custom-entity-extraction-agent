@@ -86,8 +86,11 @@ class SimpleAgent:
                         result = json.loads(tool_result)
                         if result['success']:
                             logger.info(f"Successfully created {result['total_created']} entities")
+                            # Generate a meaningful response since response.content might be empty
+                            entity_names = [entity.get('entity_name', 'Unknown') for entity in result['entities']]
+                            response_text = f"✅ Successfully created {result['total_created']} entities: {', '.join(entity_names)}"
                             return {
-                                "response": response.content,
+                                "response": response_text,
                                 "success": True,
                                 "entities_created": result['total_created'],
                                 "entities": result['entities']

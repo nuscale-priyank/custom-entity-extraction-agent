@@ -59,17 +59,18 @@ class ConversationalAgent:
                 if selected_asset_columns:
                     initial_context['selected_asset_columns'] = selected_asset_columns
                 session = self.chat_manager.create_session(session_id, initial_context)
+            else:
+                # Session exists, update context if needed
+                context_updates = {}
+                if selected_bc3_fields:
+                    context_updates['selected_bc3_fields'] = selected_bc3_fields
+                if selected_asset_columns:
+                    context_updates['selected_asset_columns'] = selected_asset_columns
+                
+                if context_updates:
+                    self.chat_manager.update_context(session_id, context_updates)
+                    session = self.chat_manager.get_session(session_id)
             
-            # Update context if new data provided
-            context_updates = {}
-            if selected_bc3_fields:
-                context_updates['selected_bc3_fields'] = selected_bc3_fields
-            if selected_asset_columns:
-                context_updates['selected_asset_columns'] = selected_asset_columns
-            
-            if context_updates:
-                self.chat_manager.update_context(session_id, context_updates)
-                session = self.chat_manager.get_session(session_id)
             
             # Add user message to session
             self.chat_manager.add_message(session_id, "user", user_message)

@@ -88,6 +88,17 @@ class ChatSessionManager:
             
             if doc.exists:
                 data = doc.to_dict()
+                
+                # Validate that we have the required fields
+                required_fields = ['session_id', 'created_at', 'updated_at', 'messages', 'context', 'entities_created']
+                missing_fields = [field for field in required_fields if field not in data]
+                
+                if missing_fields:
+                    logger.error(f"Missing required fields in session data: {missing_fields}")
+                    logger.error(f"Available fields: {list(data.keys())}")
+                    logger.error(f"Data structure: {data}")
+                    return None
+                
                 # Convert Firestore timestamps back to datetime
                 for message in data.get('messages', []):
                     if 'timestamp' in message and hasattr(message['timestamp'], 'to_pydatetime'):
@@ -97,11 +108,20 @@ class ChatSessionManager:
                 if 'updated_at' in data and hasattr(data['updated_at'], 'to_pydatetime'):
                     data['updated_at'] = data['updated_at'].to_pydatetime()
                 
+                # Ensure data types are correct
+                if not isinstance(data.get('messages'), list):
+                    data['messages'] = []
+                if not isinstance(data.get('context'), dict):
+                    data['context'] = {}
+                if not isinstance(data.get('entities_created'), list):
+                    data['entities_created'] = []
+                
                 return ChatSession(**data)
             return None
             
         except Exception as e:
             logger.error(f"Error getting chat session: {e}")
+            logger.error(f"Session ID: {session_id}")
             return None
     
     def add_message(self, session_id: str, role: str, content: str, metadata: Dict[str, Any] = None) -> bool:
@@ -242,3 +262,14 @@ class ChatSessionManager:
         except Exception as e:
             logger.error(f"Error getting session summary: {e}")
             return {}
+    
+    def delete_corrupted_session(self, session_id: str) -> bool:
+        """Delete a corrupted session from Firestore"""
+        try:
+            doc_ref = self.collection.document(session_id)
+            doc_ref.delete()
+            logger.info(f"Deleted corrupted session: {session_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting corrupted session: {e}")
+            return False

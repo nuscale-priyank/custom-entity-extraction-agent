@@ -13,9 +13,12 @@ Your job is to:
 
 IMPORTANT: You MUST use the create_entities tool. Do not just describe entities - actually create them.
 
+CRITICAL: Use the ACTUAL field names and data from the provided BC3 fields and asset columns. Do not create generic entities like "BC3 Field" or "System Resource". Create specific entities based on the actual data provided.
+
 APPROACH:
-- Create ONE OR MORE meaningful business entities
+- Create ONE OR MORE meaningful business entities based on the actual data provided
 - Each entity should have MULTIPLE attributes underneath it
+- Use the actual field names, data types, and descriptions from the context
 - Think hierarchically: Entity → Attributes
 - Focus on business value and relationships
 
@@ -24,39 +27,31 @@ Tool format:
 - entities_data: JSON array of entities with this structure:
   [
     {{
-      "entity_name": "Main Business Entity Name",
+      "entity_name": "Specific Business Entity Name (based on actual data)",
       "entity_type": "field|asset|business_metric|derived_insight",
-      "entity_value": "Entity description",
+      "entity_value": "Entity description based on actual data",
       "confidence": 0.95,
-      "source_field": "Source field name",
-      "description": "Detailed description",
+      "source_field": "Actual source field names from context",
+      "description": "Detailed description based on actual data",
       "attributes": [
         {{
-          "attribute_name": "Attribute 1 Name",
-          "attribute_value": "Attribute 1 Value",
-          "attribute_type": "string|numeric|boolean",
+          "attribute_name": "Actual Field Name from Context",
+          "attribute_value": "Actual field name or value",
+          "attribute_type": "string|numeric|boolean|date",
           "confidence": 0.9,
-          "source_field": "Source",
-          "description": "Attribute 1 description"
-        }},
-        {{
-          "attribute_name": "Attribute 2 Name",
-          "attribute_value": "Attribute 2 Value",
-          "attribute_type": "string|numeric|boolean",
-          "confidence": 0.9,
-          "source_field": "Source",
-          "description": "Attribute 2 description"
+          "source_field": "Actual source field name",
+          "description": "Description based on actual field data"
         }}
       ]
     }}
   ]
 
 EXAMPLES:
-- Entity: "Credit Account" with attributes: "Account ID", "Credit Score", "Account Type"
-- Entity: "Customer Profile" with attributes: "Customer ID", "Risk Rating", "Credit Limit"
-- Entity: "Transaction" with attributes: "Transaction ID", "Amount", "Date", "Type"
+- If BC3 field is "birth_date" → Entity: "Person Demographics" with attribute "Birth Date"
+- If Asset column is "deceased_date" → Entity: "Person Status" with attribute "Deceased Date"
+- If BC3 field is "credit_score" → Entity: "Credit Profile" with attribute "Credit Score"
 
-Create 1-3 meaningful entities, each with 2-5 relevant attributes from the provided data."""
+Create 1-3 meaningful entities using the ACTUAL field names and data provided in the context."""
 
 
 def get_context_prompt(bc3_fields: list = None, asset_columns: list = None) -> str:
@@ -66,13 +61,24 @@ def get_context_prompt(bc3_fields: list = None, asset_columns: list = None) -> s
     if bc3_fields:
         context_parts.append("BC3 Fields:")
         for i, field_data in enumerate(bc3_fields, 1):
-            field = field_data.get("field", {})
-            segment = field_data.get("segment_context", {})
-            
-            # Use field_name or description, and get data_type from field
-            field_name = field.get('field_name', field.get('description', 'Unknown'))
-            data_type = field.get('data_type', 'string')  # Default to string if not specified
-            segment_name = segment.get('segment_name', 'Unknown')
+            # Handle different possible structures
+            if isinstance(field_data, dict):
+                # Check if it has the nested structure
+                if 'field' in field_data and 'segment_context' in field_data:
+                    field = field_data.get("field", {})
+                    segment = field_data.get("segment_context", {})
+                    field_name = field.get('field_name', field.get('description', 'Unknown'))
+                    data_type = field.get('data_type', 'string')
+                    segment_name = segment.get('segment_name', 'Unknown')
+                else:
+                    # Direct structure
+                    field_name = field_data.get('field_name', field_data.get('description', 'Unknown'))
+                    data_type = field_data.get('data_type', 'string')
+                    segment_name = field_data.get('segment_name', 'Unknown')
+            else:
+                field_name = str(field_data)
+                data_type = 'string'
+                segment_name = 'Unknown'
             
             context_parts.append(f"{i}. {field_name} ({data_type}) - {segment_name}")
     

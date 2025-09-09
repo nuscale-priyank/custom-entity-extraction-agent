@@ -29,7 +29,7 @@ class EntityAttribute(BaseModel):
     """Entity attribute model for custom entities collection"""
     attribute_id: str = Field(default_factory=lambda: f"attr_{uuid.uuid4().hex[:8]}")
     attribute_name: str
-    attribute_value: str
+    attribute_value: Any  # Allow any type (str, int, float, bool, etc.)
     attribute_type: str = "string"  # string, number, boolean, object
     confidence: float = Field(ge=0.0, le=1.0, default=0.8)
     source_field: str = ""

@@ -269,7 +269,9 @@ class ConversationalAgent:
                     if entity.attributes:
                         message += f"   **Attributes ({len(entity.attributes)}):**\n"
                         for attr in entity.attributes:
-                            message += f"   • {attr.attribute_name} ({attr.attribute_type}): {attr.attribute_value}\n"
+                            # Convert attribute_value to string for display
+                            attr_value = str(attr.attribute_value) if attr.attribute_value is not None else "None"
+                            message += f"   • {attr.attribute_name} ({attr.attribute_type}): {attr_value}\n"
                         message += "\n"
                     
                     # List relationships
@@ -472,7 +474,8 @@ Return only the entity_id or "none", no other text.
                     chat_output += f"   • **Attributes:** {len(entity.attributes)} attributes\n"
                     if entity.attributes:
                         for attr in entity.attributes[:3]:  # Show first 3 attributes
-                            chat_output += f"     - {attr.attribute_name}: {attr.attribute_value}\n"
+                            attr_value = str(attr.attribute_value) if attr.attribute_value is not None else "None"
+                            chat_output += f"     - {attr.attribute_name}: {attr_value}\n"
                         if len(entity.attributes) > 3:
                             chat_output += f"     - ... and {len(entity.attributes) - 3} more\n"
                     chat_output += "\n"
@@ -685,7 +688,8 @@ Return only the JSON, no other text.
                         enhanced_response += f"   • **Attributes:** {len(entity.attributes)} attributes\n"
                         if entity.attributes:
                             for attr in entity.attributes[:2]:  # Show first 2 attributes
-                                enhanced_response += f"     - {attr.attribute_name}: {attr.attribute_value}\n"
+                                attr_value = str(attr.attribute_value) if attr.attribute_value is not None else "None"
+                                enhanced_response += f"     - {attr.attribute_name}: {attr_value}\n"
                             if len(entity.attributes) > 2:
                                 enhanced_response += f"     - ... and {len(entity.attributes) - 2} more\n"
                         enhanced_response += "\n"

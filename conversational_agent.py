@@ -13,6 +13,7 @@ from config import Config
 from chat_session_manager import ChatSessionManager
 from entity_collection_manager import EntityCollectionManager
 from entity_collection_models import CreateEntityRequest
+from relationship_detector import RelationshipDetector
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class ConversationalAgent:
         # Initialize managers
         self.chat_manager = ChatSessionManager(self.project_id, database_id=Config.get_database_id())
         self.entity_manager = EntityCollectionManager(self.project_id, database_id=Config.get_database_id())
+        self.relationship_detector = RelationshipDetector()
         
         logger.info("Conversational Agent initialized")
     
@@ -87,6 +89,8 @@ class ConversationalAgent:
                 response = self._handle_entity_update(session_id, user_message, session)
             elif intent == "delete_entity":
                 response = self._handle_entity_deletion(session_id, user_message, session)
+            elif intent == "manage_relationships":
+                response = self._handle_relationship_management(session_id, user_message, session)
             elif intent == "help":
                 response = self._handle_help_request()
             else:
@@ -124,6 +128,8 @@ class ConversationalAgent:
             return "update_entity"
         elif any(word in message_lower for word in ['delete', 'remove', 'drop']):
             return "delete_entity"
+        elif any(word in message_lower for word in ['relationship', 'connect', 'link', 'relate']):
+            return "manage_relationships"
         elif any(word in message_lower for word in ['help', 'assist', 'support']):
             return "help"
         else:
@@ -161,6 +167,9 @@ class ConversationalAgent:
                 for entity in result['entities']:
                     if 'entity_id' in entity:
                         self.chat_manager.add_created_entity(session_id, entity['entity_id'])
+                
+                # Enhance response with relationship information
+                result = self._enhance_response_with_relationships(result, session_id)
             
             return result
             
@@ -239,13 +248,33 @@ class ConversationalAgent:
             result = self.entity_manager.read_entities(request)
             
             if result.success and result.entities:
-                entity_list = []
-                for entity in result.entities:
-                    entity_list.append(f"- {entity.entity_name} ({entity.entity_type}) - {entity.description}")
+                # Count entities with relationships
+                entities_with_relationships = sum(1 for entity in result.entities if entity.relationships)
+                total_relationships = sum(len(entity.relationships) for entity in result.entities)
                 
-                message = f"I found {len(result.entities)} entities in this session:\n\n" + "\n".join(entity_list)
+                message = f"📊 **Entity Summary**\n\n"
+                message += f"• **Total Entities:** {len(result.entities)}\n"
+                message += f"• **Entities with Relationships:** {entities_with_relationships}\n"
+                message += f"• **Total Relationships:** {total_relationships}\n\n"
+                
+                if len(result.entities) <= 5:
+                    message += f"📋 **Entity List:**\n"
+                    for entity in result.entities:
+                        message += f"• {entity.entity_name} ({entity.entity_type.value})\n"
+                else:
+                    message += f"📋 **Entity List:** (showing first 5)\n"
+                    for entity in result.entities[:5]:
+                        message += f"• {entity.entity_name} ({entity.entity_type.value})\n"
+                    message += f"• ... and {len(result.entities) - 5} more\n"
+                
+                message += f"\n💡 **Next Steps:**\n"
+                message += f"Please view the detailed entities and relationships in the **Entity Management** section at the top of your screen."
             else:
-                message = "I don't see any entities created in this session yet. Would you like to create some?"
+                message = f"📊 **Entity Summary**\n\n"
+                message += f"• **Total Entities:** 0\n"
+                message += f"• **Entities with Relationships:** 0\n"
+                message += f"• **Total Relationships:** 0\n\n"
+                message += f"💡 **No entities found in this session.** Would you like to create some?"
             
             return {
                 "response": message,
@@ -369,6 +398,101 @@ Return only the entity_id or "none", no other text.
                 "entities": []
             }
     
+    def _handle_relationship_management(self, session_id: str, message: str, session) -> Dict[str, Any]:
+        """Handle relationship management through conversation"""
+        
+        try:
+            from entity_collection_models import ReadEntityRequest
+            
+            # Get all entities for the session
+            read_request = ReadEntityRequest(session_id=session_id)
+            read_result = self.entity_manager.read_entities(read_request)
+            
+            if not read_result.success or not read_result.entities:
+                return {
+                    "response": "I don't see any entities in this session to manage relationships for. Would you like to create some first?",
+                    "success": False,
+                    "entities_created": 0,
+                    "entities": []
+                }
+            
+            if len(read_result.entities) < 2:
+                return {
+                    "response": "I need at least 2 entities to show relationships. You currently have 1 entity. Would you like to create more?",
+                    "success": False,
+                    "entities_created": 0,
+                    "entities": []
+                }
+            
+            # First, try to detect relationships if they haven't been detected yet
+            has_relationships = any(entity.relationships for entity in read_result.entities)
+            if not has_relationships:
+                logger.info("No existing relationships found, triggering relationship detection")
+                self.entity_manager.detect_relationships_for_session(session_id)
+                
+                # Re-read entities to get updated relationships
+                read_result = self.entity_manager.read_entities(read_request)
+            
+            # Detect relationships
+            relationships = self.relationship_detector.detect_relationships(read_result.entities)
+            
+            if relationships:
+                # Count relationships found
+                total_relationships = sum(len(rel_list) for rel_list in relationships.values())
+                
+                # Create concise summary
+                chat_output = f"✅ **Relationship Analysis Complete**\n\n"
+                chat_output += f"📊 **Summary:**\n"
+                chat_output += f"• **Entities Analyzed:** {len(read_result.entities)}\n"
+                chat_output += f"• **Relationships Found:** {total_relationships}\n\n"
+                chat_output += f"🔗 **Key Relationships:**\n"
+                
+                # Add key relationships
+                for entity_id, entity_rels in relationships.items():
+                    entity = next((e for e in read_result.entities if e.entity_id == entity_id), None)
+                    if entity:
+                        for target_entity_id, rel_list in entity_rels.items():
+                            target_entity = next((e for e in read_result.entities if e.entity_id == target_entity_id), None)
+                            if target_entity:
+                                for rel in rel_list:
+                                    rel_type = rel["type"].replace("_", " ").title()
+                                    chat_output += f"• {entity.entity_name} → {rel_type} → {target_entity.entity_name}\n"
+                
+                chat_output += f"\n💡 **Next Steps:**\n"
+                chat_output += f"Please view the detailed entities and relationships in the **Entity Management** section at the top of your screen."
+                
+                return {
+                    "response": chat_output,
+                    "success": True,
+                    "entities_created": 0,
+                    "entities": [entity.model_dump(mode='json') for entity in read_result.entities]
+                }
+            else:
+                chat_output = f"📊 **Relationship Analysis Complete**\n\n"
+                chat_output += f"• **Entities Analyzed:** {len(read_result.entities)}\n"
+                chat_output += f"• **Relationships Found:** 0\n\n"
+                chat_output += f"💡 **No clear relationships detected.** This could mean:\n"
+                chat_output += f"• The entities are independent\n"
+                chat_output += f"• The relationships are not obvious from the current data\n"
+                chat_output += f"• You might want to create more related entities\n\n"
+                chat_output += f"Please view the entities in the **Entity Management** section at the top of your screen."
+                
+                return {
+                    "response": chat_output,
+                    "success": True,
+                    "entities_created": 0,
+                    "entities": [entity.model_dump(mode='json') for entity in read_result.entities]
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in relationship management: {e}")
+            return {
+                "response": f"I encountered an error while analyzing relationships: {str(e)}",
+                "success": False,
+                "entities_created": 0,
+                "entities": []
+            }
+    
     def _handle_help_request(self) -> Dict[str, Any]:
         """Handle help requests"""
         
@@ -388,10 +512,18 @@ I'm here to help you build and manage entities! Here's what I can do:
 **Entity Management:**
 - "List all my entities"
 - "Show me what entities I have"
+- "Delete the Customer Profile entity"
+- "Remove entity_abc123"
+
+**Relationship Management:**
+- "Show me relationships between entities"
+- "How are my entities connected?"
+- "Analyze entity relationships"
 
 **Data Context:**
 - You can provide BC3 fields and asset columns, and I'll use them for extraction
 - I remember our conversation context throughout the session
+- I automatically detect relationships between entities
 
 Just tell me what you'd like to do in natural language!
         """.strip()
@@ -481,3 +613,39 @@ Return only the JSON, no other text.
             logger.error(f"Error extracting entity from response: {e}")
         
         return None
+    
+    def _enhance_response_with_relationships(self, result: Dict[str, Any], session_id: str) -> Dict[str, Any]:
+        """Enhance response with relationship information"""
+        try:
+            # Get all entities for the session to analyze relationships
+            from entity_collection_models import ReadEntityRequest
+            read_request = ReadEntityRequest(session_id=session_id)
+            read_result = self.entity_manager.read_entities(read_request)
+            
+            if read_result.success and len(read_result.entities) > 1:
+                # Detect relationships
+                relationships = self.relationship_detector.detect_relationships(read_result.entities)
+                
+                if relationships:
+                    # Count relationships found
+                    total_relationships = sum(len(rel_list) for rel_list in relationships.values())
+                    
+                    # Create enhanced response
+                    original_response = result.get('response', '')
+                    
+                    enhanced_response = f"{original_response}\n\n"
+                    enhanced_response += f"🔗 **Relationship Analysis:**\n"
+                    enhanced_response += f"• **Entities Created:** {result.get('entities_created', 0)}\n"
+                    enhanced_response += f"• **Total Entities in Session:** {len(read_result.entities)}\n"
+                    enhanced_response += f"• **Relationships Detected:** {total_relationships}\n\n"
+                    enhanced_response += f"💡 **Next Steps:**\n"
+                    enhanced_response += f"Please view the detailed entities and relationships in the **Entity Management** section at the top of your screen."
+                    
+                    result['response'] = enhanced_response
+                    logger.info("Enhanced response with relationship information")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error enhancing response with relationships: {e}")
+            return result

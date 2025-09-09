@@ -17,6 +17,7 @@ from entity_collection_models import (
     EntityType
 )
 from config import Config
+from relationship_detector import RelationshipDetector
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class EntityCollectionManager:
         self.database_id = database_id or Config.get_database_id()
         self.db = firestore.Client(project=project_id, database=self.database_id)
         self.collection = self.db.collection(self.collection_name)
+        self.relationship_detector = RelationshipDetector()
         
         logger.info(f"EntityCollectionManager initialized for project: {project_id}")
         logger.info(f"Using database: {self.database_id}")
@@ -181,6 +183,10 @@ class EntityCollectionManager:
                     logger.error(f"❌ Error creating entity {entity_data.get('entity_name', 'unknown')}: {e}")
                     continue
             
+            # Detect and update relationships
+            if len(entity_doc.entities) > 1:
+                self._detect_and_update_relationships(entity_doc)
+            
             # Save the updated document
             if self._save_entity_document(request.session_id, entity_doc):
                 logger.info(f"✅ Successfully created {len(created_entities)} entities for session {request.session_id}")
@@ -209,6 +215,57 @@ class EntityCollectionManager:
                 success=False,
                 message=f"Error creating entities: {str(e)}"
             )
+    
+    def _detect_and_update_relationships(self, entity_doc: EntityCollectionDocument):
+        """Detect and update relationships between entities"""
+        try:
+            logger.info(f"🔗 Detecting relationships between {len(entity_doc.entities)} entities")
+            
+            # Detect relationships
+            relationships = self.relationship_detector.detect_relationships(entity_doc.entities)
+            
+            if relationships:
+                # Update entities with relationship information
+                for entity in entity_doc.entities:
+                    if entity.entity_id in relationships:
+                        entity = self.relationship_detector.update_entity_relationships(
+                            entity, relationships[entity.entity_id]
+                        )
+                        logger.info(f"✅ Updated relationships for entity: {entity.entity_name}")
+                
+                logger.info(f"🔗 Successfully detected relationships for {len(relationships)} entities")
+            else:
+                logger.info("🔗 No relationships detected between entities")
+                
+        except Exception as e:
+            logger.error(f"❌ Error detecting relationships: {e}")
+            # Don't fail the entire operation if relationship detection fails
+    
+    def detect_relationships_for_session(self, session_id: str) -> bool:
+        """Manually trigger relationship detection for all entities in a session"""
+        try:
+            logger.info(f"🔗 Manually detecting relationships for session: {session_id}")
+            
+            # Get the entity document
+            entity_doc = self._get_entity_document(session_id)
+            if not entity_doc or len(entity_doc.entities) < 2:
+                logger.info(f"No entities or insufficient entities for relationship detection in session {session_id}")
+                return False
+            
+            # Detect and update relationships
+            self._detect_and_update_relationships(entity_doc)
+            
+            # Save the updated document
+            if self._save_entity_document(session_id, entity_doc):
+                logger.info(f"✅ Successfully updated relationships for session {session_id}")
+                return True
+            else:
+                logger.error(f"❌ Failed to save relationship updates for session {session_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error in manual relationship detection: {e}")
+            return False
     
     def read_entities(self, request: ReadEntityRequest) -> ReadEntityResponse:
         """

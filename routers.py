@@ -12,14 +12,13 @@ from models import (
     AttributeRequest, CreateAttributeRequest, UpdateAttributeRequest, DeleteAttributeRequest,
     StandardResponse
 )
-from entity_collection_manager import EntityCollectionManager
+from managers import EntityCollectionManager, ChatSessionManager
 from entity_collection_models import (
     ReadEntityRequest, CreateEntityRequest as FirestoreCreateEntityRequest,
     UpdateEntityRequest as FirestoreUpdateEntityRequest, DeleteEntityRequest as FirestoreDeleteEntityRequest
 )
 from config import Config
 from conversational_agent import ConversationalAgent
-from chat_session_manager import ChatSessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -300,20 +299,26 @@ async def delete_attribute(entity_id: str, attribute_id: str, request: DeleteAtt
 # Conversational Agent Endpoints
 
 @router.post("/conversation", response_model=ChatResponse)
-async def conversation(request: ChatRequest):
-    """Conversational endpoint for natural entity building"""
+async def conversation(request: ChatRequest, user_id: str = None):
+    """Conversational endpoint for natural entity building (Now using LangGraph)"""
     try:
+        # Use default user_id if not provided
+        if user_id is None:
+            user_id = Config.get_default_user_id()
+        
         logger.info(f"Conversation request received - Session: {request.session_id}")
         logger.info(f"Message: {request.message}")
         logger.info(f"BC3 fields: {len(request.selected_bc3_fields)}")
         logger.info(f"Asset columns: {len(request.selected_asset_columns)}")
+        logger.info(f"User ID: {user_id}")
         
-        # Process with conversational agent
+        # Process with LangGraph-based conversational agent
         result = conversational_agent.process_message(
             session_id=request.session_id,
             user_message=request.message,
             selected_bc3_fields=request.selected_bc3_fields,
-            selected_asset_columns=request.selected_asset_columns
+            selected_asset_columns=request.selected_asset_columns,
+            user_id=user_id
         )
         
         logger.info(f"Conversation processed - Success: {result['success']}, Entities: {result['entities_created']}")
@@ -325,17 +330,56 @@ async def conversation(request: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/conversation/{session_id}/history")
-async def get_conversation_history(session_id: str, limit: int = 10):
-    """Get conversation history for a session"""
+@router.post("/conversation/langgraph", response_model=ChatResponse)
+async def conversation_langgraph(request: ChatRequest, user_id: str = None):
+    """LangGraph-based conversational endpoint for natural entity building (Same as /conversation now)"""
     try:
-        logger.info(f"Getting conversation history for session: {session_id}")
+        # Use default user_id if not provided
+        if user_id is None:
+            user_id = Config.get_default_user_id()
         
-        history = chat_session_manager.get_conversation_history(session_id, limit)
+        logger.info(f"LangGraph conversation request received - Session: {request.session_id}")
+        logger.info(f"Message: {request.message}")
+        logger.info(f"BC3 fields: {len(request.selected_bc3_fields)}")
+        logger.info(f"Asset columns: {len(request.selected_asset_columns)}")
+        logger.info(f"User ID: {user_id}")
+        
+        # Process with LangGraph-based conversational agent (same as /conversation)
+        result = conversational_agent.process_message(
+            session_id=request.session_id,
+            user_message=request.message,
+            selected_bc3_fields=request.selected_bc3_fields,
+            selected_asset_columns=request.selected_asset_columns,
+            user_id=user_id
+        )
+        
+        logger.info(f"LangGraph conversation processed - Success: {result['success']}, Entities: {result['entities_created']}")
+        
+        return ChatResponse(**result)
+        
+    except Exception as e:
+        logger.error(f"Error processing LangGraph conversation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/conversation/{session_id}/history")
+async def get_conversation_history(session_id: str, user_id: str = None, limit: int = None):
+    """Get conversation history for a session (Now using LangGraph)"""
+    try:
+        # Use default values if not provided
+        if user_id is None:
+            user_id = Config.get_default_user_id()
+        if limit is None:
+            limit = Config.get_default_conversation_limit()
+        
+        logger.info(f"Getting conversation history for session: {session_id}, user: {user_id}")
+        
+        history = conversational_agent.get_conversation_history(session_id, user_id, limit)
         
         return {
             "session_id": session_id,
-            "messages": [msg.model_dump(mode='json') for msg in history],
+            "user_id": user_id,
+            "messages": history,
             "total_messages": len(history)
         }
         
@@ -344,18 +388,67 @@ async def get_conversation_history(session_id: str, limit: int = 10):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/conversation/{session_id}/summary")
-async def get_session_summary(session_id: str):
-    """Get session summary"""
+@router.get("/conversation/{session_id}/history/langgraph")
+async def get_conversation_history_langgraph(session_id: str, user_id: str = None, limit: int = None):
+    """Get conversation history for a session using LangGraph (Same as /history now)"""
     try:
-        logger.info(f"Getting session summary for: {session_id}")
+        # Use default values if not provided
+        if user_id is None:
+            user_id = Config.get_default_user_id()
+        if limit is None:
+            limit = Config.get_default_conversation_limit()
         
-        summary = chat_session_manager.get_session_summary(session_id)
+        logger.info(f"Getting LangGraph conversation history for session: {session_id}, user: {user_id}")
+        
+        history = conversational_agent.get_conversation_history(session_id, user_id, limit)
+        
+        return {
+            "session_id": session_id,
+            "user_id": user_id,
+            "messages": history,
+            "total_messages": len(history)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting LangGraph conversation history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/conversation/{session_id}/summary")
+async def get_session_summary(session_id: str, user_id: str = None):
+    """Get session summary (Now using LangGraph)"""
+    try:
+        # Use default user_id if not provided
+        if user_id is None:
+            user_id = Config.get_default_user_id()
+        
+        logger.info(f"Getting session summary for: {session_id}, user: {user_id}")
+        
+        summary = conversational_agent.get_session_summary(session_id, user_id)
         
         return summary
         
     except Exception as e:
         logger.error(f"Error getting session summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/conversation/{session_id}/summary/langgraph")
+async def get_session_summary_langgraph(session_id: str, user_id: str = None):
+    """Get session summary using LangGraph (Same as /summary now)"""
+    try:
+        # Use default user_id if not provided
+        if user_id is None:
+            user_id = Config.get_default_user_id()
+        
+        logger.info(f"Getting LangGraph session summary for: {session_id}, user: {user_id}")
+        
+        summary = conversational_agent.get_session_summary(session_id, user_id)
+        
+        return summary
+        
+    except Exception as e:
+        logger.error(f"Error getting LangGraph session summary: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

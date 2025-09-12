@@ -41,7 +41,7 @@ def clear_firestore_collections(project_id: str, collections: list, dry_run: boo
         from google.cloud import firestore
         
         logger.info(f"🔗 Connecting to Firestore project: {project_id}")
-        db = firestore.Client(project=project_id)
+        db = firestore.Client(project=project_id, database=Config.DATABASE_ID)
         
         # Process each collection
         total_docs_all_collections = 0

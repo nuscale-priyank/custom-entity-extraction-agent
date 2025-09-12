@@ -7,7 +7,7 @@ import logging
 from typing import List
 from langchain_core.tools import tool
 
-from entity_collection_manager import EntityCollectionManager
+from managers import EntityCollectionManager
 from entity_collection_models import CreateEntityRequest
 from config import Config
 

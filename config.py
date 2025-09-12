@@ -26,6 +26,15 @@ class Config:
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     
+    # Default user settings
+    DEFAULT_USER_ID: str = "default_user"
+    
+    # Thread settings
+    THREAD_PREFIX: str = "thread"
+    
+    # Conversation settings
+    DEFAULT_CONVERSATION_LIMIT: int = 10
+    
     @classmethod
     def get_project_id(cls) -> str:
         """Get project ID from environment or default"""
@@ -50,3 +59,18 @@ class Config:
     def get_database_id(cls) -> str:
         """Get database ID from environment or default"""
         return os.getenv("FIRESTORE_DATABASE_ID", cls.DATABASE_ID)
+    
+    @classmethod
+    def get_default_user_id(cls) -> str:
+        """Get default user ID from environment or default"""
+        return os.getenv("DEFAULT_USER_ID", cls.DEFAULT_USER_ID)
+    
+    @classmethod
+    def get_thread_prefix(cls) -> str:
+        """Get thread prefix from environment or default"""
+        return os.getenv("THREAD_PREFIX", cls.THREAD_PREFIX)
+    
+    @classmethod
+    def get_default_conversation_limit(cls) -> int:
+        """Get default conversation limit from environment or default"""
+        return int(os.getenv("DEFAULT_CONVERSATION_LIMIT", cls.DEFAULT_CONVERSATION_LIMIT))

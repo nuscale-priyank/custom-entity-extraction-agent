@@ -12,8 +12,8 @@ from langchain_google_vertexai import ChatVertexAI
 from langchain_core.prompts import ChatPromptTemplate
 
 from config import Config
-from tools import create_entities, get_all_tools
-from prompts import get_system_prompt, get_context_prompt
+from .tools import create_entities, get_all_tools
+from .prompts import get_system_prompt, get_context_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class SimpleAgent:
                                 "entities_created": result['total_created'],
                                 "entities": result['entities']
                             }
-            else:
+                        else:
                             logger.error(f"Tool failed: {result['message']}")
                             return {
                                 "response": f"Error: {result['message']}",

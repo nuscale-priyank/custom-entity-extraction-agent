@@ -17,7 +17,7 @@ from entity_collection_models import (
     EntityType
 )
 from config import Config
-from relationship_detector import RelationshipDetector
+from .relationship_detector import RelationshipDetector
 
 logger = logging.getLogger(__name__)
 

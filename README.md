@@ -127,12 +127,9 @@ curl -X POST "http://localhost:8000/conversation?user_id=test_user" \
 
 ### 🆕 LangGraph-Powered Conversational Endpoints
 
-**POST** `/conversation` - Main conversational interface (now using LangGraph)
-**POST** `/conversation/langgraph` - LangGraph-based conversational endpoint (same as above)
-**GET** `/conversation/{session_id}/history` - Get conversation history (now using LangGraph)
-**GET** `/conversation/{session_id}/history/langgraph` - LangGraph history endpoint (same as above)
-**GET** `/conversation/{session_id}/summary` - Get session summary (now using LangGraph)
-**GET** `/conversation/{session_id}/summary/langgraph` - LangGraph summary endpoint (same as above)
+**POST** `/conversation` - Main conversational interface with LangGraph state management
+**GET** `/conversation/{session_id}/history` - Get conversation history with LangGraph persistence
+**GET** `/conversation/{session_id}/summary` - Get session summary with LangGraph state
 **POST** `/conversation/{session_id}/context` - Update session context
 
 ### Traditional Chat Endpoint

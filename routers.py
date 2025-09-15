@@ -330,38 +330,6 @@ async def conversation(request: ChatRequest, user_id: str = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/conversation/langgraph", response_model=ChatResponse)
-async def conversation_langgraph(request: ChatRequest, user_id: str = None):
-    """LangGraph-based conversational endpoint for natural entity building (Same as /conversation now)"""
-    try:
-        # Use default user_id if not provided
-        if user_id is None:
-            user_id = Config.get_default_user_id()
-        
-        logger.info(f"LangGraph conversation request received - Session: {request.session_id}")
-        logger.info(f"Message: {request.message}")
-        logger.info(f"BC3 fields: {len(request.selected_bc3_fields)}")
-        logger.info(f"Asset columns: {len(request.selected_asset_columns)}")
-        logger.info(f"User ID: {user_id}")
-        
-        # Process with LangGraph-based conversational agent (same as /conversation)
-        result = conversational_agent.process_message(
-            session_id=request.session_id,
-            user_message=request.message,
-            selected_bc3_fields=request.selected_bc3_fields,
-            selected_asset_columns=request.selected_asset_columns,
-            user_id=user_id
-        )
-        
-        logger.info(f"LangGraph conversation processed - Success: {result['success']}, Entities: {result['entities_created']}")
-        
-        return ChatResponse(**result)
-        
-    except Exception as e:
-        logger.error(f"Error processing LangGraph conversation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/conversation/{session_id}/history")
 async def get_conversation_history(session_id: str, user_id: str = None, limit: int = None):
     """Get conversation history for a session (Now using LangGraph)"""
@@ -388,32 +356,6 @@ async def get_conversation_history(session_id: str, user_id: str = None, limit: 
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/conversation/{session_id}/history/langgraph")
-async def get_conversation_history_langgraph(session_id: str, user_id: str = None, limit: int = None):
-    """Get conversation history for a session using LangGraph (Same as /history now)"""
-    try:
-        # Use default values if not provided
-        if user_id is None:
-            user_id = Config.get_default_user_id()
-        if limit is None:
-            limit = Config.get_default_conversation_limit()
-        
-        logger.info(f"Getting LangGraph conversation history for session: {session_id}, user: {user_id}")
-        
-        history = conversational_agent.get_conversation_history(session_id, user_id, limit)
-        
-        return {
-            "session_id": session_id,
-            "user_id": user_id,
-            "messages": history,
-            "total_messages": len(history)
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting LangGraph conversation history: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/conversation/{session_id}/summary")
 async def get_session_summary(session_id: str, user_id: str = None):
     """Get session summary (Now using LangGraph)"""
@@ -430,25 +372,6 @@ async def get_session_summary(session_id: str, user_id: str = None):
         
     except Exception as e:
         logger.error(f"Error getting session summary: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/conversation/{session_id}/summary/langgraph")
-async def get_session_summary_langgraph(session_id: str, user_id: str = None):
-    """Get session summary using LangGraph (Same as /summary now)"""
-    try:
-        # Use default user_id if not provided
-        if user_id is None:
-            user_id = Config.get_default_user_id()
-        
-        logger.info(f"Getting LangGraph session summary for: {session_id}, user: {user_id}")
-        
-        summary = conversational_agent.get_session_summary(session_id, user_id)
-        
-        return summary
-        
-    except Exception as e:
-        logger.error(f"Error getting LangGraph session summary: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

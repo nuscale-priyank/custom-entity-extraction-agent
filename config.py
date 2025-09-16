@@ -41,7 +41,7 @@ class Config:
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "mysecretpassword"
     POSTGRES_DATABASE: str = "postgres"
-    POSTGRES_SCHEMA: str = "langgraph"
+    POSTGRES_SCHEMA: str = "public"
     
     @classmethod
     def get_project_id(cls) -> str:

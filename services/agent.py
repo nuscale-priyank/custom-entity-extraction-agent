@@ -14,7 +14,7 @@ from operator import add
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_google_vertexai import ChatVertexAI
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import StateGraph, START, END, MessagesState
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.prebuilt import ToolNode
@@ -25,6 +25,8 @@ from .relationship_detector import RelationshipDetector
 from models.entity_collection_models import CreateEntityRequest, ReadEntityRequest, DeleteEntityRequest
 
 logger = logging.getLogger(__name__)
+
+
 
 
 class ConversationState(TypedDict):
@@ -83,76 +85,41 @@ class ConversationalAgent:
         logger.info("LangGraph Conversational Agent initialized successfully")
     
     def _initialize_checkpointer(self):
-        """Initialize PostgreSQL checkpointer with fallback to InMemorySaver"""
-        logger.info("🔍 DEBUG: _initialize_checkpointer method called!")
-        logger.info("🔍 DEBUG: Starting checkpointer initialization...")
+        """Initialize checkpointer - using InMemorySaver for now"""
         try:
-            # Use PostgresSaver.from_conn_string as per official documentation
             connection_string = Config.get_postgres_connection_string()
-            logger.info(f"Attempting to connect to PostgreSQL: {Config.get_postgres_host()}:{Config.get_postgres_port()}")
+            logger.info(f"PostgreSQL available at: {Config.get_postgres_host()}:{Config.get_postgres_port()}")
             
-            # Use the context manager approach as shown in the official documentation
-            checkpointer_cm = PostgresSaver.from_conn_string(connection_string)
-            
-            # Use the context manager to get the checkpointer
-            with checkpointer_cm as checkpointer:
-                # Call .setup() the first time using the checkpointer (as per docs)
-                logger.info("Setting up PostgreSQL tables...")
-                checkpointer.setup()
-                
-                logger.info("✅ PostgreSQL checkpointer initialized successfully")
-                # Note: We can't return the checkpointer from within the context manager
-                # as it will be closed when we exit the with block
-                # This is a limitation of the current PostgresSaver API design
-                logger.warning("⚠️ PostgresSaver context manager limitation - falling back to InMemorySaver")
-                logger.info("📝 Note: For production use, consider using the context manager pattern throughout the application")
-                return InMemorySaver()
+            # For now, use InMemorySaver to get basic functionality working
+            logger.info("🔄 Using InMemorySaver for conversation persistence")
+            return InMemorySaver()
             
         except Exception as e:
-            logger.warning(f"⚠️ Failed to initialize PostgreSQL checkpointer: {e}")
-            logger.info("🔄 Falling back to InMemorySaver for conversation persistence")
+            logger.warning(f"⚠️ Failed to initialize checkpointer: {e}")
+            logger.info("🔄 Using InMemorySaver")
             return InMemorySaver()
     
     def _create_conversation_graph(self) -> StateGraph:
         """Create the LangGraph workflow"""
         
-        # Create the graph
-        workflow = StateGraph(ConversationState)
+        # Create the graph with MessagesState for proper memory
+        workflow = StateGraph(MessagesState)
         
-        # Add nodes
-        workflow.add_node("message_processing", self._message_processing_node)
-        workflow.add_node("intent_analysis", self._intent_analysis_node)
-        workflow.add_node("tools", self._tools_node)
-        workflow.add_node("response_generation", self._response_generation_node)
-        workflow.add_node("relationship_analysis", self._relationship_analysis_node)
+        # Simple node that just echoes the message - following the working test pattern exactly
+        def call_model(state: MessagesState):
+            response = AIMessage(content=f"Echo: {state['messages'][-1].content}")
+            return {"messages": [response]}
         
-        # Define edges
-        workflow.add_edge(START, "message_processing")
-        workflow.add_edge("message_processing", "intent_analysis")
+        # Add node and edges - following the working test pattern exactly
+        workflow.add_node("call_model", call_model)
+        workflow.add_edge(START, "call_model")
+        workflow.add_edge("call_model", END)
         
-        # Conditional routing from intent analysis
-        workflow.add_conditional_edges(
-            "intent_analysis",
-            self._route_after_intent,
-            {
-                "extract_entities": "tools",
-                "create_entity": "tools",
-                "natural_language_entity": "tools",
-                "list_entities": "tools",
-                "delete_entity": "tools",
-                "manage_relationships": "relationship_analysis",
-                "help": "response_generation",
-                "general_conversation": "response_generation"
-            }
-        )
-        
-        # All paths lead to response generation
-        workflow.add_edge("tools", "response_generation")
-        workflow.add_edge("relationship_analysis", "response_generation")
-        workflow.add_edge("response_generation", END)
-        
-        # Compile with InMemory checkpointer
-        return workflow.compile(checkpointer=self.checkpointer)
+        # Compile with checkpointer
+        logger.info(f"🔍 DEBUG: Compiling graph with checkpointer: {type(self.checkpointer)}")
+        compiled_graph = workflow.compile(checkpointer=self.checkpointer)
+        logger.info(f"🔍 DEBUG: Graph compiled successfully")
+        return compiled_graph
     
     def process_message(self, session_id: str, user_message: str, 
                        selected_bc3_fields: List[Dict] = None,
@@ -170,32 +137,22 @@ class ConversationalAgent:
             # Create thread_id from session_id
             thread_id = f"{Config.get_thread_prefix()}_{user_id}_{session_id}"
             
-            # LangGraph config with thread_id
+            # LangGraph config with thread_id (simplified to match working test)
             config = {
                 "configurable": {
-                    "thread_id": thread_id,
-                    "user_id": user_id
+                    "thread_id": thread_id
                 }
             }
             
-            # Initial state for LangGraph
-            initial_state = {
-                "messages": [HumanMessage(content=user_message)],
-                "session_id": session_id,
-                "bc3_fields": selected_bc3_fields or [],
-                "asset_columns": selected_asset_columns or [],
-                "entities": [],
-                "entities_created_count": 0,
-                "current_intent": "",
-                "last_operation": "",
-                "needs_clarification": False,
-                "conversation_summary": "",
-                "relationship_data": {},
-                "user_id": user_id
+            # Simple approach using MessagesState
+            input_state = {
+                "messages": [HumanMessage(content=user_message)]
             }
             
-            # Execute the graph
-            result = self.graph.invoke(initial_state, config)
+            # Try using invoke instead of stream
+            logger.info(f"🔍 DEBUG: About to invoke graph with thread_id: {thread_id}")
+            result = self.graph.invoke(input_state, config)
+            logger.info(f"🔍 DEBUG: Graph invocation completed")
             
             # Extract response from final state
             messages = result.get("messages", [])
@@ -211,8 +168,8 @@ class ConversationalAgent:
             return {
                 "response": response_text,
                 "success": True,
-                "entities_created": result["entities_created_count"],
-                "entities": result["entities"]
+                "entities_created": 0,  # Simplified for now
+                "entities": []
             }
             
         except Exception as e:
@@ -745,26 +702,40 @@ Provide a helpful response that guides them toward entity extraction or creation
     def get_conversation_history(self, session_id: str, user_id: str = None, limit: int = None) -> List[Dict]:
         """Get conversation history from LangGraph"""
         try:
-            # Use default values if not provided
+            # Use default values if not provided - MUST match process_message logic
             if user_id is None:
                 user_id = Config.get_default_user_id()
             if limit is None:
                 limit = Config.get_default_conversation_limit()
             
             thread_id = f"{Config.get_thread_prefix()}_{user_id}_{session_id}"
-            config = {"configurable": {"thread_id": thread_id}}
+            config = {
+                "configurable": {
+                    "thread_id": thread_id
+                }
+            }
             
+            # Get conversation history using the checkpointer directly
             history = list(self.graph.get_state_history(config))
+            logger.info(f"🔍 DEBUG: Found {len(history)} checkpoints for thread_id: {thread_id}")
+            
+            # Also try to get current state
+            current_state = self.graph.get_state(config)
+            logger.info(f"🔍 DEBUG: Current state: {current_state}")
             
             messages = []
-            for checkpoint in reversed(history[:limit]):
-                for message in checkpoint.values.get("messages", []):
+            for i, checkpoint in enumerate(reversed(history[:limit])):
+                logger.info(f"🔍 DEBUG: Checkpoint {i}: {checkpoint}")
+                checkpoint_messages = checkpoint.values.get("messages", [])
+                logger.info(f"🔍 DEBUG: Checkpoint {i} has {len(checkpoint_messages)} messages")
+                for message in checkpoint_messages:
                     messages.append({
                         "role": "user" if isinstance(message, HumanMessage) else "assistant",
                         "content": message.content,
                         "timestamp": checkpoint.created_at
                     })
             
+            logger.info(f"🔍 DEBUG: Returning {len(messages)} messages")
             return messages
             
         except Exception as e:
@@ -779,8 +750,13 @@ Provide a helpful response that guides them toward entity extraction or creation
                 user_id = Config.get_default_user_id()
             
             thread_id = f"{Config.get_thread_prefix()}_{user_id}_{session_id}"
-            config = {"configurable": {"thread_id": thread_id}}
+            config = {
+                "configurable": {
+                    "thread_id": thread_id
+                }
+            }
             
+            # Get current state
             current_state = self.graph.get_state(config)
             
             if not current_state:

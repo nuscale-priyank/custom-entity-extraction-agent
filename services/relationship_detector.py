@@ -4,7 +4,7 @@ Relationship Detection and Management for Entities
 
 import logging
 from typing import List, Dict, Any, Optional, Tuple
-from entity_collection_models import CustomEntity
+from models.entity_collection_models import CustomEntity
 
 logger = logging.getLogger(__name__)
 

@@ -6,19 +6,19 @@ import logging
 from fastapi import APIRouter, HTTPException
 from typing import List
 
-from models import (
+from models.models import (
     ChatRequest, ChatResponse, EntityRequest, EntityResponse,
     CreateEntityRequest, UpdateEntityRequest, DeleteEntityRequest,
     AttributeRequest, CreateAttributeRequest, UpdateAttributeRequest, DeleteAttributeRequest,
     StandardResponse
 )
-from managers import EntityCollectionManager, ChatSessionManager
-from entity_collection_models import (
+from services import EntityCollectionManager, ChatSessionManager
+from models.entity_collection_models import (
     ReadEntityRequest, CreateEntityRequest as FirestoreCreateEntityRequest,
     UpdateEntityRequest as FirestoreUpdateEntityRequest, DeleteEntityRequest as FirestoreDeleteEntityRequest
 )
 from config import Config
-from conversational_agent import ConversationalAgent
+from services.agent import ConversationalAgent
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ async def chat(request: ChatRequest):
         logger.info(f"Asset columns: {len(request.selected_asset_columns)}")
         
         # Import here to avoid circular imports
-        from agent import SimpleAgent
+        from services.simple_agent import SimpleAgent
         agent = SimpleAgent()
         
         # Process request

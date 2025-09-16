@@ -35,6 +35,14 @@ class Config:
     # Conversation settings
     DEFAULT_CONVERSATION_LIMIT: int = 10
     
+    # PostgreSQL settings for LangGraph persistence
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "mysecretpassword"
+    POSTGRES_DATABASE: str = "postgres"
+    POSTGRES_SCHEMA: str = "langgraph"
+    
     @classmethod
     def get_project_id(cls) -> str:
         """Get project ID from environment or default"""
@@ -74,3 +82,38 @@ class Config:
     def get_default_conversation_limit(cls) -> int:
         """Get default conversation limit from environment or default"""
         return int(os.getenv("DEFAULT_CONVERSATION_LIMIT", cls.DEFAULT_CONVERSATION_LIMIT))
+    
+    @classmethod
+    def get_postgres_host(cls) -> str:
+        """Get PostgreSQL host from environment or default"""
+        return os.getenv("POSTGRES_HOST", cls.POSTGRES_HOST)
+    
+    @classmethod
+    def get_postgres_port(cls) -> int:
+        """Get PostgreSQL port from environment or default"""
+        return int(os.getenv("POSTGRES_PORT", cls.POSTGRES_PORT))
+    
+    @classmethod
+    def get_postgres_user(cls) -> str:
+        """Get PostgreSQL user from environment or default"""
+        return os.getenv("POSTGRES_USER", cls.POSTGRES_USER)
+    
+    @classmethod
+    def get_postgres_password(cls) -> str:
+        """Get PostgreSQL password from environment or default"""
+        return os.getenv("POSTGRES_PASSWORD", cls.POSTGRES_PASSWORD)
+    
+    @classmethod
+    def get_postgres_database(cls) -> str:
+        """Get PostgreSQL database from environment or default"""
+        return os.getenv("POSTGRES_DATABASE", cls.POSTGRES_DATABASE)
+    
+    @classmethod
+    def get_postgres_schema(cls) -> str:
+        """Get PostgreSQL schema from environment or default"""
+        return os.getenv("POSTGRES_SCHEMA", cls.POSTGRES_SCHEMA)
+    
+    @classmethod
+    def get_postgres_connection_string(cls) -> str:
+        """Get PostgreSQL connection string"""
+        return f"postgresql://{cls.get_postgres_user()}:{cls.get_postgres_password()}@{cls.get_postgres_host()}:{cls.get_postgres_port()}/{cls.get_postgres_database()}"

@@ -17,20 +17,20 @@ A comprehensive conversational AI agent powered by LangGraph for BC3 (Credit Dom
 **Modular LangGraph-Powered & Conversational:**
 - `main.py` - FastAPI server entry point
 - `routers.py` - All API endpoints with CRUD and conversation operations (now using LangGraph)
-- `models.py` - Pydantic models for API requests/responses
-- `conversational_agent.py` - **LangGraph-based conversational agent with state management**
-- `entity_collection_models.py` - Data models for entities and attributes
 - `config.py` - Configuration settings
 
-**Managers Package (`managers/`):**
+**Services Package (`services/`):**
+- `agent.py` - **LangGraph-based conversational agent with state management**
+- `simple_agent.py` - Simplified agent for direct entity extraction
 - `entity_collection_manager.py` - Firestore operations and entity CRUD
 - `chat_session_manager.py` - Legacy conversation history and session management
 - `relationship_detector.py` - Entity relationship detection and analysis
+- `tools.py` - LangChain tools for entity operations
+- `prompts.py` - System prompts and templates
 
-**Services Package (`services/`):**
-- `agent.py` - Core agent logic for direct entity extraction
-- `tools.py` - LangChain tools for entity creation
-- `prompts.py` - System prompts and context templates
+**Models Package (`models/`):**
+- `models.py` - Pydantic models for API requests/responses
+- `entity_collection_models.py` - Data models for entities and attributes
 
 ## Features
 

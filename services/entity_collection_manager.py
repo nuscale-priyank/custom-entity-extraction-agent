@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from google.cloud import firestore
 
-from entity_collection_models import (
+from models.entity_collection_models import (
     CustomEntity, EntityCollectionDocument, EntityAttribute,
     CreateEntityRequest, CreateEntityResponse,
     ReadEntityRequest, ReadEntityResponse,

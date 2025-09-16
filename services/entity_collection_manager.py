@@ -462,14 +462,16 @@ class EntityCollectionManager:
                             break
                     
                     if entity_to_update:
-                        original_count = len(entity_to_update.attributes)
+                        # Track which attributes were actually deleted
+                        original_attributes = entity_to_update.attributes.copy()
                         entity_to_update.attributes = [
                             attr for attr in entity_to_update.attributes 
                             if attr.attribute_id not in request.attribute_ids
                         ]
+                        # Find which attributes were actually removed
                         deleted_attributes = [
-                            attr_id for attr_id in request.attribute_ids
-                            if any(attr.attribute_id == attr_id for attr in entity_to_update.attributes)
+                            attr.attribute_id for attr in original_attributes
+                            if attr.attribute_id in request.attribute_ids
                         ]
                         entity_to_update.updated_at = datetime.now(timezone.utc)
                 else:
@@ -512,3 +514,166 @@ class EntityCollectionManager:
                 success=False,
                 message=f"Error deleting entities: {str(e)}"
             )
+    
+    def create_attribute(self, session_id: str, entity_id: str, attribute_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new attribute for an entity.
+        
+        Args:
+            session_id: Session ID
+            entity_id: Entity ID to add attribute to
+            attribute_data: Attribute data (name, value, type, description)
+            
+        Returns:
+            Dict with success status and created attribute info
+        """
+        try:
+            logger.info(f"➕ Creating attribute for entity: {entity_id} in session: {session_id}")
+            
+            entity_doc = self._get_entity_document(session_id)
+            if not entity_doc:
+                return {
+                    "success": False,
+                    "message": "Session not found",
+                    "attribute_id": None
+                }
+            
+            # Find the entity
+            entity_to_update = None
+            for entity in entity_doc.entities:
+                if entity.entity_id == entity_id:
+                    entity_to_update = entity
+                    break
+            
+            if not entity_to_update:
+                return {
+                    "success": False,
+                    "message": "Entity not found",
+                    "attribute_id": None
+                }
+            
+            # Create new attribute
+            new_attribute = EntityAttribute(
+                attribute_name=attribute_data.get("attribute_name", ""),
+                attribute_value=attribute_data.get("attribute_value", ""),
+                attribute_type=attribute_data.get("attribute_type", "string"),
+                description=attribute_data.get("description", ""),
+                confidence=attribute_data.get("confidence", 0.8)
+            )
+            
+            # Add attribute to entity
+            entity_to_update.attributes.append(new_attribute)
+            entity_to_update.updated_at = datetime.now(timezone.utc)
+            
+            # Save the updated document
+            if self._save_entity_document(session_id, entity_doc):
+                logger.info(f"✅ Successfully created attribute: {new_attribute.attribute_name} (ID: {new_attribute.attribute_id})")
+                return {
+                    "success": True,
+                    "message": f"Successfully created attribute: {new_attribute.attribute_name}",
+                    "attribute_id": new_attribute.attribute_id,
+                    "attribute": new_attribute
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": "Failed to save attribute",
+                    "attribute_id": None
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Error creating attribute: {e}")
+            return {
+                "success": False,
+                "message": f"Error creating attribute: {str(e)}",
+                "attribute_id": None
+            }
+    
+    def update_attribute(self, session_id: str, entity_id: str, attribute_id: str, attribute_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update an existing attribute.
+        
+        Args:
+            session_id: Session ID
+            entity_id: Entity ID
+            attribute_id: Attribute ID to update
+            attribute_data: Updated attribute data
+            
+        Returns:
+            Dict with success status and updated attribute info
+        """
+        try:
+            logger.info(f"✏️ Updating attribute: {attribute_id} for entity: {entity_id} in session: {session_id}")
+            
+            entity_doc = self._get_entity_document(session_id)
+            if not entity_doc:
+                return {
+                    "success": False,
+                    "message": "Session not found",
+                    "attribute": None
+                }
+            
+            # Find the entity and attribute
+            entity_to_update = None
+            attribute_to_update = None
+            
+            for entity in entity_doc.entities:
+                if entity.entity_id == entity_id:
+                    entity_to_update = entity
+                    for attr in entity.attributes:
+                        if attr.attribute_id == attribute_id:
+                            attribute_to_update = attr
+                            break
+                    break
+            
+            if not entity_to_update:
+                return {
+                    "success": False,
+                    "message": "Entity not found",
+                    "attribute": None
+                }
+            
+            if not attribute_to_update:
+                return {
+                    "success": False,
+                    "message": "Attribute not found",
+                    "attribute": None
+                }
+            
+            # Update attribute fields
+            if "attribute_name" in attribute_data:
+                attribute_to_update.attribute_name = attribute_data["attribute_name"]
+            if "attribute_value" in attribute_data:
+                attribute_to_update.attribute_value = attribute_data["attribute_value"]
+            if "attribute_type" in attribute_data:
+                attribute_to_update.attribute_type = attribute_data["attribute_type"]
+            if "description" in attribute_data:
+                attribute_to_update.description = attribute_data["description"]
+            if "confidence" in attribute_data:
+                attribute_to_update.confidence = attribute_data["confidence"]
+            
+            attribute_to_update.updated_at = datetime.now(timezone.utc)
+            entity_to_update.updated_at = datetime.now(timezone.utc)
+            
+            # Save the updated document
+            if self._save_entity_document(session_id, entity_doc):
+                logger.info(f"✅ Successfully updated attribute: {attribute_to_update.attribute_name} (ID: {attribute_id})")
+                return {
+                    "success": True,
+                    "message": f"Successfully updated attribute: {attribute_to_update.attribute_name}",
+                    "attribute": attribute_to_update
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": "Failed to save attribute update",
+                    "attribute": None
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Error updating attribute: {e}")
+            return {
+                "success": False,
+                "message": f"Error updating attribute: {str(e)}",
+                "attribute": None
+            }

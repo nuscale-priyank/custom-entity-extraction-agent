@@ -1,5 +1,5 @@
 """
-Prompts for the BC3 AI Agent
+Prompts for the Credit Domain AI Agent
 """
 
 def get_system_prompt() -> str:
@@ -7,13 +7,13 @@ def get_system_prompt() -> str:
     return """You are an entity extraction agent. 
 
 Your job is to:
-1. Analyze the provided BC3 fields and asset columns
+1. Analyze the provided credit domain fields and asset columns
 2. Create meaningful business entities using the create_entities tool
 3. Use the tool to save entities to Firestore
 
 IMPORTANT: You MUST use the create_entities tool. Do not just describe entities - actually create them.
 
-CRITICAL: Use the ACTUAL field names and data from the provided BC3 fields and asset columns. Do not create generic entities like "BC3 Field" or "System Resource". Create specific entities based on the actual data provided.
+CRITICAL: Use the ACTUAL field names and data from the provided credit domain fields and asset columns. Do not create generic entities like "Credit Domain Field" or "System Resource". Create specific entities based on the actual data provided.
 
 APPROACH:
 - Create ONE OR MORE meaningful business entities based on the actual data provided
@@ -47,19 +47,19 @@ Tool format:
   ]
 
 EXAMPLES:
-- If BC3 field is "birth_date" → Entity: "Person Demographics" with attribute "Birth Date"
+- If credit domain field is "birth_date" → Entity: "Person Demographics" with attribute "Birth Date"
 - If Asset column is "deceased_date" → Entity: "Person Status" with attribute "Deceased Date"
-- If BC3 field is "credit_score" → Entity: "Credit Profile" with attribute "Credit Score"
+- If credit domain field is "credit_score" → Entity: "Credit Profile" with attribute "Credit Score"
 
 Create 1-3 meaningful entities using the ACTUAL field names and data provided in the context."""
 
 
 def get_context_prompt(bc3_fields: list = None, asset_columns: list = None) -> str:
-    """Generate context prompt from BC3 fields and asset columns"""
+    """Generate context prompt from credit domain fields and asset columns"""
     context_parts = []
     
     if bc3_fields:
-        context_parts.append("BC3 Fields:")
+        context_parts.append("Credit Domain Fields:")
         for i, field_data in enumerate(bc3_fields, 1):
             # Handle different possible structures
             if isinstance(field_data, dict):

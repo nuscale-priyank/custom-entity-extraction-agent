@@ -1,5 +1,5 @@
 """
-Configuration settings for the BC3 AI Agent
+Configuration settings for the Credit Domain AI Agent
 """
 
 import os

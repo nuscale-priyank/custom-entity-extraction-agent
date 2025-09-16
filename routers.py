@@ -1,19 +1,18 @@
 """
-API routers for the BC3 AI Agent
+API routers for the Credit Domain AI Agent
 """
 
 import logging
 from fastapi import APIRouter, HTTPException
 from typing import List
 
-from models.models import (
-    ChatRequest, ChatResponse, EntityRequest, EntityResponse,
-    CreateEntityRequest, UpdateEntityRequest, DeleteEntityRequest,
-    AttributeRequest, CreateAttributeRequest, UpdateAttributeRequest, DeleteAttributeRequest,
-    StandardResponse
-)
 from services import EntityCollectionManager, ChatSessionManager
 from models.entity_collection_models import (
+    # API Request/Response models
+    ChatRequest, ChatResponse, EntityResponse, StandardResponse,
+    ApiCreateEntityRequest, ApiUpdateEntityRequest, ApiDeleteEntityRequest,
+    CreateAttributeRequest, UpdateAttributeRequest, DeleteAttributeRequest,
+    # Firestore models
     ReadEntityRequest, CreateEntityRequest as FirestoreCreateEntityRequest,
     UpdateEntityRequest as FirestoreUpdateEntityRequest, DeleteEntityRequest as FirestoreDeleteEntityRequest
 )
@@ -31,40 +30,12 @@ conversational_agent = ConversationalAgent(Config.get_project_id())
 chat_session_manager = ChatSessionManager(Config.get_project_id(), database_id=Config.get_database_id())
 
 
-@router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
-    """Chat endpoint for entity extraction"""
-    try:
-        logger.info(f"Chat request received - Session: {request.session_id}")
-        logger.info(f"Message: {request.message}")
-        logger.info(f"BC3 fields: {len(request.selected_bc3_fields)}")
-        logger.info(f"Asset columns: {len(request.selected_asset_columns)}")
-        
-        # Import here to avoid circular imports
-        from services.simple_agent import SimpleAgent
-        agent = SimpleAgent()
-        
-        # Process request
-        result = agent.process_request(
-            message=request.message,
-            session_id=request.session_id,
-            selected_bc3_fields=request.selected_bc3_fields,
-            selected_asset_columns=request.selected_asset_columns
-        )
-        
-        logger.info(f"Request processed - Success: {result['success']}, Entities: {result['entities_created']}")
-        
-        return ChatResponse(**result)
-        
-    except Exception as e:
-        logger.error(f"Error processing request: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/health")
 async def health():
     """Health check endpoint"""
-    return {"status": "healthy", "agent": "simple"}
+    return {"status": "healthy", "agent": "conversational"}
 
 
 # Entity CRUD Operations
@@ -96,7 +67,7 @@ async def read_entities(session_id: str, limit: int = 100, offset: int = 0):
 
 
 @router.post("/entities", response_model=StandardResponse)
-async def create_entity(request: CreateEntityRequest):
+async def create_entity(request: ApiCreateEntityRequest):
     """Create a new entity"""
     try:
         logger.info(f"Creating entity: {request.entity_name} for session: {request.session_id}")
@@ -127,7 +98,7 @@ async def create_entity(request: CreateEntityRequest):
 
 
 @router.put("/entities", response_model=StandardResponse)
-async def update_entity(request: UpdateEntityRequest):
+async def update_entity(request: ApiUpdateEntityRequest):
     """Update an existing entity"""
     try:
         logger.info(f"Updating entity: {request.entity_id} for session: {request.session_id}")
@@ -163,7 +134,7 @@ async def update_entity(request: UpdateEntityRequest):
 
 
 @router.delete("/entities", response_model=StandardResponse)
-async def delete_entity(request: DeleteEntityRequest):
+async def delete_entity(request: ApiDeleteEntityRequest):
     """Delete an entity"""
     try:
         logger.info(f"Deleting entity: {request.entity_id} for session: {request.session_id}")
@@ -234,12 +205,28 @@ async def create_attribute(entity_id: str, request: CreateAttributeRequest):
     try:
         logger.info(f"Creating attribute: {request.attribute_name} for entity: {entity_id}")
         
-        # This would require extending the entity manager to support attribute operations
-        # For now, return a placeholder response
+        # Prepare attribute data
+        attribute_data = {
+            "attribute_name": request.attribute_name,
+            "attribute_value": request.attribute_value,
+            "attribute_type": request.attribute_type,
+            "description": request.description
+        }
+        
+        # Create the attribute
+        result = entity_manager.create_attribute(
+            session_id=request.session_id,
+            entity_id=entity_id,
+            attribute_data=attribute_data
+        )
+        
         return StandardResponse(
-            success=True,
-            message="Attribute creation not yet implemented",
-            data={"attribute_name": request.attribute_name}
+            success=result["success"],
+            message=result["message"],
+            data={
+                "attribute_id": result.get("attribute_id"),
+                "attribute": result.get("attribute")
+            }
         )
         
     except Exception as e:
@@ -253,12 +240,31 @@ async def update_attribute(entity_id: str, attribute_id: str, request: UpdateAtt
     try:
         logger.info(f"Updating attribute: {attribute_id} for entity: {entity_id}")
         
-        # This would require extending the entity manager to support attribute operations
-        # For now, return a placeholder response
+        # Prepare attribute data (only include non-None values)
+        attribute_data = {}
+        if request.attribute_name is not None:
+            attribute_data["attribute_name"] = request.attribute_name
+        if request.attribute_value is not None:
+            attribute_data["attribute_value"] = request.attribute_value
+        if request.attribute_type is not None:
+            attribute_data["attribute_type"] = request.attribute_type
+        if request.description is not None:
+            attribute_data["description"] = request.description
+        
+        # Update the attribute
+        result = entity_manager.update_attribute(
+            session_id=request.session_id,
+            entity_id=entity_id,
+            attribute_id=attribute_id,
+            attribute_data=attribute_data
+        )
+        
         return StandardResponse(
-            success=True,
-            message="Attribute update not yet implemented",
-            data={"attribute_id": attribute_id}
+            success=result["success"],
+            message=result["message"],
+            data={
+                "attribute": result.get("attribute")
+            }
         )
         
     except Exception as e:
@@ -308,7 +314,7 @@ async def conversation(request: ChatRequest, user_id: str = None):
         
         logger.info(f"Conversation request received - Session: {request.session_id}")
         logger.info(f"Message: {request.message}")
-        logger.info(f"BC3 fields: {len(request.selected_bc3_fields)}")
+        logger.info(f"Credit domain fields: {len(request.selected_bc3_fields)}")
         logger.info(f"Asset columns: {len(request.selected_asset_columns)}")
         logger.info(f"User ID: {user_id}")
         
@@ -377,7 +383,7 @@ async def get_session_summary(session_id: str, user_id: str = None):
 
 @router.post("/conversation/{session_id}/context")
 async def update_session_context(session_id: str, context_updates: dict):
-    """Update session context with BC3 fields or asset columns"""
+    """Update session context with credit domain fields or asset columns"""
     try:
         logger.info(f"Updating context for session: {session_id}")
         

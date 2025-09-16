@@ -1,6 +1,6 @@
-# BC3 AI Agent - LangGraph-Powered Conversational Entity Management
+# Credit Domain AI Agent - LangGraph-Powered Conversational Entity Management
 
-A comprehensive conversational AI agent powered by LangGraph for BC3 (Credit Domain) data and data assets with natural language entity building, full CRUD operations, intelligent session management, and advanced state persistence.
+A comprehensive conversational AI agent powered by LangGraph for credit domain data and data assets with natural language entity building, full CRUD operations, intelligent session management, and advanced state persistence.
 
 ## 🚀 What's New - LangGraph Integration
 
@@ -38,7 +38,7 @@ A comprehensive conversational AI agent powered by LangGraph for BC3 (Credit Dom
 - ✅ **Conversational Interface**: Natural language entity building through chat with full context awareness
 - ✅ **Intent Recognition**: Understands extract, create, list, update, delete, help commands with conversation context
 - ✅ **Session Management**: Persistent conversation history and context tracking with thread-based sessions
-- ✅ **Entity Extraction**: `create_entities` tool - extracts and saves entities from BC3/asset data
+- ✅ **Entity Extraction**: `create_entities` tool - extracts and saves entities from credit domain/asset data
 - ✅ **Natural Language Entity Creation**: Create sophisticated business entities from natural language descriptions
 - ✅ **Full CRUD Operations**: Create, Read, Update, Delete entities and attributes
 - ✅ **Direct LLM Interaction**: Vertex AI integration with conversation context
@@ -113,7 +113,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=test_user" \
   -d '{
     "message": "Hello! Can you help me understand what this system does?",
     "session_id": "test_001",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -134,7 +134,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=test_user" \
 
 ### Traditional Chat Endpoint
 
-**POST** `/chat` - Extract entities from BC3 fields and asset columns
+**POST** `/conversation` - Extract entities from credit domain fields and asset columns
 
 ### Entity CRUD Operations
 
@@ -165,7 +165,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=demo_user" \
   -d '{
     "message": "Hello! Can you help me understand what this system does?",
     "session_id": "demo_help_001",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -173,7 +173,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=demo_user" \
 **Response:**
 ```json
 {
-  "response": "I'm here to help you build and manage entities! Here's what I can do:\n\n**Entity Extraction:**\n- \"Extract entities from my BC3 fields\"\n- \"Find entities in my asset columns\"\n- \"Identify business entities from the data\"\n\n**Entity Creation:**\n- \"Create a customer entity with name and email attributes\"\n- \"Build a credit account entity\"\n- \"Make a transaction entity\"\n\n**Entity Management:**\n- \"List all my entities\"\n- \"Show me what entities I have\"\n- \"Delete the Customer Profile entity\"\n- \"Remove entity_abc123\"\n\n**Relationship Management:**\n- \"Show me relationships between entities\"\n- \"How are my entities connected?\"\n- \"Analyze entity relationships\"\n\n**Data Context:**\n- You can provide BC3 fields and asset columns, and I'll use them for extraction\n- I remember our conversation context throughout the session\n- I automatically detect relationships between entities\n\nJust tell me what you'd like to do in natural language!",
+  "response": "I'm here to help you build and manage entities! Here's what I can do:\n\n**Entity Extraction:**\n- \"Extract entities from my credit domain fields\"\n- \"Find entities in my asset columns\"\n- \"Identify business entities from the data\"\n\n**Entity Creation:**\n- \"Create a customer entity with name and email attributes\"\n- \"Build a credit account entity\"\n- \"Make a transaction entity\"\n\n**Entity Management:**\n- \"List all my entities\"\n- \"Show me what entities I have\"\n- \"Delete the Customer Profile entity\"\n- \"Remove entity_abc123\"\n\n**Relationship Management:**\n- \"Show me relationships between entities\"\n- \"How are my entities connected?\"\n- \"Analyze entity relationships\"\n\n**Data Context:**\n- You can provide credit domain fields and asset columns, and I'll use them for extraction\n- I remember our conversation context throughout the session\n- I automatically detect relationships between entities\n\nJust tell me what you'd like to do in natural language!",
   "success": true,
   "entities_created": 0,
   "entities": []
@@ -187,7 +187,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=demo_user" \
   -d '{
     "message": "List all my entities",
     "session_id": "demo_list_001",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -207,7 +207,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=demo_user" \
 curl -X POST "http://localhost:8000/conversation?user_id=demo_user" \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "Extract entities from my BC3 fields and asset columns",
+    "message": "Extract entities from my credit domain fields and asset columns",
     "session_id": "demo_extract_001",
     "selected_bc3_fields": [
       {
@@ -273,7 +273,7 @@ curl "http://localhost:8000/conversation/demo_extract_001/history?user_id=demo_u
   "messages": [
     {
       "role": "user",
-      "content": "Extract entities from my BC3 fields and asset columns",
+      "content": "Extract entities from my credit domain fields and asset columns",
       "timestamp": "2025-09-11T20:07:17.866293+00:00"
     },
     {
@@ -298,7 +298,7 @@ curl "http://localhost:8000/conversation/demo_extract_001/summary?user_id=demo_u
   "thread_id": "thread_demo_user_demo_extract_001",
   "message_count": 2,
   "entities_created_count": 2,
-  "has_bc3_fields": true,
+  "has_credit_domain_fields": true,
   "has_asset_columns": true,
   "current_intent": "extract_entities",
   "last_activity": "2025-09-11T20:07:17.867212+00:00",
@@ -313,7 +313,7 @@ curl "http://localhost:8000/conversation/demo_extract_001/summary?user_id=demo_u
 curl -X POST "http://localhost:8000/chat" \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "Extract entities from the BC3 fields and create meaningful business entities",
+    "message": "Extract entities from the credit domain fields and create meaningful business entities",
     "session_id": "test_basic_001",
     "selected_bc3_fields": [
       {
@@ -349,7 +349,7 @@ curl -X POST "http://localhost:8000/chat" \
 curl -X POST "http://localhost:8000/chat" \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "Extract entities from the BC3 fields and create meaningful business entities",
+    "message": "Extract entities from the credit domain fields and create meaningful business entities",
     "session_id": "test_comprehensive_001",
     "selected_bc3_fields": [
       {
@@ -566,7 +566,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=fraud_detection_user" \
   -d '{
     "message": "Create entities for a fraud detection system that monitors suspicious transactions and customer behavior patterns",
     "session_id": "fraud_detection_session",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -582,7 +582,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=credit_risk_user" \
   -d '{
     "message": "Create entities for a comprehensive credit risk assessment system that evaluates borrower creditworthiness and loan approval decisions",
     "session_id": "credit_risk_session",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -599,7 +599,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=onboarding_user" \
   -d '{
     "message": "Create entities for a digital customer onboarding system that handles KYC verification, document collection, and account setup",
     "session_id": "onboarding_session",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -616,7 +616,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=portfolio_user" \
   -d '{
     "message": "Create entities for an investment portfolio management system that tracks assets, performance metrics, and rebalancing strategies",
     "session_id": "portfolio_session",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -633,7 +633,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=insurance_user" \
   -d '{
     "message": "Create entities for an insurance claims processing system that handles claim submission, investigation, and settlement",
     "session_id": "insurance_session",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -650,7 +650,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=supply_chain_user" \
   -d '{
     "message": "Create entities for a supply chain management system that tracks inventory, suppliers, orders, and logistics",
     "session_id": "supply_chain_session",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -667,7 +667,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=healthcare_user" \
   -d '{
     "message": "Create entities for a healthcare patient management system that handles patient records, appointments, and treatment plans",
     "session_id": "healthcare_session",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -684,7 +684,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=ecommerce_user" \
   -d '{
     "message": "Create entities for an e-commerce order management system that handles product catalog, shopping cart, and order fulfillment",
     "session_id": "ecommerce_session",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -701,7 +701,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=real_estate_user" \
   -d '{
     "message": "Create entities for a real estate property management system that handles property listings, tenant management, and lease agreements",
     "session_id": "real_estate_session",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -718,7 +718,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=banking_user" \
   -d '{
     "message": "Create entities for a banking transaction monitoring system that tracks account activity, compliance, and regulatory reporting",
     "session_id": "banking_session",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -735,7 +735,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=manufacturing_user" \
   -d '{
     "message": "Create entities for a manufacturing quality control system that monitors production lines, quality metrics, and defect tracking",
     "session_id": "manufacturing_session",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -752,7 +752,7 @@ curl -X POST "http://localhost:8000/conversation?user_id=energy_user" \
   -d '{
     "message": "Create entities for an energy grid management system that monitors power generation, distribution, and consumption patterns",
     "session_id": "energy_session",
-    "selected_bc3_fields": [],
+    "selected_credit_domain_fields": [],
     "selected_asset_columns": []
   }'
 ```
@@ -808,7 +808,7 @@ const ChatComponent = () => {
         body: JSON.stringify({
           message: message,
           session_id: sessionId,
-          selected_bc3_fields: [],
+          selected_credit_domain_fields: [],
           selected_asset_columns: []
         })
       });
@@ -877,7 +877,7 @@ const AdvancedChatComponent = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [sessionId] = useState(`session_${Date.now()}`);
   const [userId] = useState('frontend_user');
-  const [bc3Fields, setBc3Fields] = useState([]);
+  const [creditDomainFields, setCreditDomainFields] = useState([]);
   const [assetColumns, setAssetColumns] = useState([]);
   const [conversationHistory, setConversationHistory] = useState([]);
 
@@ -908,7 +908,7 @@ const AdvancedChatComponent = () => {
         body: JSON.stringify({
           message: message,
           session_id: sessionId,
-          selected_bc3_fields: bc3Fields,
+          selected_credit_domain_fields: creditDomainFields,
           selected_asset_columns: assetColumns
         })
       });
@@ -931,8 +931,8 @@ const AdvancedChatComponent = () => {
     }
   };
 
-  const addBc3Field = (field) => {
-    setBc3Fields(prev => [...prev, field]);
+  const addCreditDomainField = (field) => {
+    setCreditDomainFields(prev => [...prev, field]);
   };
 
   const addAssetColumn = (column) => {
@@ -942,9 +942,9 @@ const AdvancedChatComponent = () => {
   return (
     <div className="advanced-chat-container">
       <div className="data-context">
-        <h3>BC3 Fields ({bc3Fields.length})</h3>
+        <h3>Credit Domain Fields ({creditDomainFields.length})</h3>
         <div className="fields-list">
-          {bc3Fields.map((field, index) => (
+          {creditDomainFields.map((field, index) => (
             <div key={index} className="field-item">
               {field.field.field_name} - {field.field.description}
             </div>
@@ -1163,7 +1163,7 @@ export default {
           body: JSON.stringify({
             message: this.inputMessage,
             session_id: this.sessionId,
-            selected_bc3_fields: [],
+            selected_credit_domain_fields: [],
             selected_asset_columns: []
           })
         });
@@ -1452,7 +1452,7 @@ Each node in the workflow has a specific responsibility:
 ✅ **Database Integration**: Using llmops-demo-track2 database
 ✅ **Configuration Constants**: No hardcoded values
 ✅ **Relationship Detection**: Automatic entity relationship analysis
-✅ **Tested**: Comprehensive test coverage with 4 scenarios (BC3 only, Asset only, Combined, Natural Language)
+✅ **Tested**: Comprehensive test coverage with 4 scenarios (Credit Domain only, Asset only, Combined, Natural Language)
 ✅ **Documented**: Complete API documentation with frontend integration and 12+ natural language examples
 ✅ **Production Ready**: Stable and reliable with advanced state management
 

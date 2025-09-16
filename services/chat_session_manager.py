@@ -28,7 +28,7 @@ class ChatSession(BaseModel):
     created_at: datetime
     updated_at: datetime
     messages: List[ChatMessage]
-    context: Dict[str, Any]  # BC3 fields, asset columns, etc.
+    context: Dict[str, Any]  # Credit domain fields, asset columns, etc.
     entities_created: List[str]  # List of entity IDs created in this session
     status: str = "active"  # "active", "completed", "archived"
 
@@ -157,7 +157,7 @@ class ChatSessionManager:
             return False
     
     def update_context(self, session_id: str, context_updates: Dict[str, Any]) -> bool:
-        """Update the session context (BC3 fields, asset columns, etc.)"""
+        """Update the session context (credit domain fields, asset columns, etc.)"""
         try:
             session = self.get_session(session_id)
             if not session:
@@ -254,7 +254,7 @@ class ChatSessionManager:
                 "updated_at": session.updated_at,
                 "message_count": len(session.messages),
                 "entities_created_count": len(session.entities_created),
-                "has_bc3_fields": bool(session.context.get('selected_bc3_fields')),
+                "has_credit_domain_fields": bool(session.context.get('selected_bc3_fields')),
                 "has_asset_columns": bool(session.context.get('selected_asset_columns')),
                 "status": session.status
             }

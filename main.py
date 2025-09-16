@@ -13,7 +13,7 @@ from routers import router
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="BC3 AI Agent - Entity Extraction and Management")
+app = FastAPI(title="Credit Domain AI Agent - Entity Extraction and Management")
 
 # Add CORS middleware
 app.add_middleware(

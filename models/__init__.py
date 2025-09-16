@@ -1,31 +1,18 @@
 """
-Models package for BC3 AI Agent
+Models package for Credit Domain AI Agent
 Contains all data models and schemas
 """
 
-from .models import *
 from .entity_collection_models import *
 
 __all__ = [
-    # From models.py
-    'ChatRequest',
-    'ChatResponse', 
-    'EntityRequest',
-    'EntityResponse',
-    'CreateEntityRequest',
-    'UpdateEntityRequest',
-    'DeleteEntityRequest',
-    'AttributeRequest',
-    'CreateAttributeRequest',
-    'UpdateAttributeRequest',
-    'DeleteAttributeRequest',
-    'StandardResponse',
-    
-    # From entity_collection_models.py
+    # Entity models
     'EntityType',
     'CustomEntity',
     'EntityAttribute',
     'EntityCollectionDocument',
+    
+    # Firestore request/response models
     'CreateEntityRequest',
     'ReadEntityRequest',
     'UpdateEntityRequest',
@@ -33,5 +20,17 @@ __all__ = [
     'CreateEntityResponse',
     'ReadEntityResponse',
     'UpdateEntityResponse',
-    'DeleteEntityResponse'
+    'DeleteEntityResponse',
+    
+    # API request/response models
+    'ChatRequest',
+    'ChatResponse', 
+    'EntityResponse',
+    'ApiCreateEntityRequest',
+    'ApiUpdateEntityRequest',
+    'ApiDeleteEntityRequest',
+    'CreateAttributeRequest',
+    'UpdateAttributeRequest',
+    'DeleteAttributeRequest',
+    'StandardResponse'
 ]

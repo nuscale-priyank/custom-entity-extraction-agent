@@ -1,5 +1,5 @@
 """
-Tools for the BC3 AI Agent
+Tools for the Credit Domain AI Agent
 """
 
 import json

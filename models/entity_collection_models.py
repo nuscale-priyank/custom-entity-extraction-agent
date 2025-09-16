@@ -137,3 +137,89 @@ class DeleteEntityResponse(BaseModel):
     session_id: str
     success: bool
     message: str
+
+
+# API Request/Response models for endpoints
+class ChatRequest(BaseModel):
+    """Request model for chat/conversation endpoint"""
+    message: str
+    session_id: str
+    selected_bc3_fields: Optional[List[Dict]] = []
+    selected_asset_columns: Optional[List[Dict]] = []
+
+
+class ChatResponse(BaseModel):
+    """Response model for chat/conversation endpoint"""
+    response: str
+    success: bool
+    entities_created: int
+    entities: List[Dict]
+
+
+class EntityResponse(BaseModel):
+    """Response model for entity read operations"""
+    success: bool
+    message: str
+    entities: List[Dict]
+    total_count: int
+
+
+class ApiCreateEntityRequest(BaseModel):
+    """API request model for creating entities (renamed to avoid conflict)"""
+    session_id: str
+    entity_name: str
+    entity_type: str
+    entity_value: str
+    description: str
+    attributes: List[Dict] = []
+
+
+class ApiUpdateEntityRequest(BaseModel):
+    """API request model for updating entities (renamed to avoid conflict)"""
+    session_id: str
+    entity_id: str
+    entity_name: Optional[str] = None
+    entity_type: Optional[str] = None
+    entity_value: Optional[str] = None
+    description: Optional[str] = None
+
+
+class ApiDeleteEntityRequest(BaseModel):
+    """API request model for deleting entities (renamed to avoid conflict)"""
+    session_id: str
+    entity_id: str
+
+
+class CreateAttributeRequest(BaseModel):
+    """Request model for creating attributes"""
+    session_id: str
+    entity_id: str
+    attribute_name: str
+    attribute_value: str
+    attribute_type: str
+    description: str
+
+
+class UpdateAttributeRequest(BaseModel):
+    """Request model for updating attributes"""
+    session_id: str
+    entity_id: str
+    attribute_id: str
+    attribute_name: Optional[str] = None
+    attribute_value: Optional[str] = None
+    attribute_type: Optional[str] = None
+    description: Optional[str] = None
+
+
+class DeleteAttributeRequest(BaseModel):
+    """Request model for deleting attributes"""
+    session_id: str
+    entity_id: str
+    attribute_id: str
+
+
+class StandardResponse(BaseModel):
+    """Standard response model for API endpoints"""
+    success: bool
+    message: str
+    data: Optional[Dict] = None

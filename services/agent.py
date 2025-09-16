@@ -218,12 +218,12 @@ class ConversationalAgent:
         {conversation_context}
         
         Available data:
-        - BC3 fields: {len(state['bc3_fields'])}
+        - Credit domain fields: {len(state['bc3_fields'])}
         - Asset columns: {len(state['asset_columns'])}
         - Entities created so far: {state['entities_created_count']}
         
         Intent categories:
-        - extract_entities: User wants to extract entities from BC3 fields or asset columns
+        - extract_entities: User wants to extract entities from credit domain fields or asset columns
         - create_entity: User wants to manually create an entity
         - natural_language_entity: User wants to create entities from natural language descriptions
         - list_entities: User wants to see existing entities
@@ -635,7 +635,7 @@ class ConversationalAgent:
 I'm here to help you build and manage entities! Here's what I can do:
 
 **Entity Extraction:**
-- "Extract entities from my BC3 fields"
+- "Extract entities from my credit domain fields"
 - "Find entities in my asset columns"
 - "Identify business entities from the data"
 
@@ -656,7 +656,7 @@ I'm here to help you build and manage entities! Here's what I can do:
 - "Analyze entity relationships"
 
 **Data Context:**
-- You can provide BC3 fields and asset columns, and I'll use them for extraction
+- You can provide credit domain fields and asset columns, and I'll use them for extraction
 - I remember our conversation context throughout the session
 - I automatically detect relationships between entities
 
@@ -672,7 +672,7 @@ Just tell me what you'd like to do in natural language!
         {conversation_context}
         
         Session context:
-        - BC3 fields available: {len(state['bc3_fields'])}
+        - Credit domain fields available: {len(state['bc3_fields'])}
         - Asset columns available: {len(state['asset_columns'])}
         - Entities created so far: {state['entities_created_count']}
 
@@ -767,7 +767,7 @@ Provide a helpful response that guides them toward entity extraction or creation
                 "thread_id": thread_id,
                 "message_count": len(current_state.values.get("messages", [])),
                 "entities_created_count": current_state.values.get("entities_created_count", 0),
-                "has_bc3_fields": bool(current_state.values.get("bc3_fields")),
+                "has_credit_domain_fields": bool(current_state.values.get("bc3_fields")),
                 "has_asset_columns": bool(current_state.values.get("asset_columns")),
                 "current_intent": current_state.values.get("current_intent", ""),
                 "last_activity": current_state.created_at,
